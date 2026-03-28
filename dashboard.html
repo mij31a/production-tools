@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ぷわんな毎日 ダッシュボード</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Dela+Gothic+One&display=swap" rel="stylesheet" />
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111116; }
+</style>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script>
+window.storage = {
+  get: async (key) => { const v = localStorage.getItem(key); return v ? { value: v } : null; },
+  set: async (key, value) => { localStorage.setItem(key, value); },
+  delete: async (key) => { localStorage.removeItem(key); },
+};
+</script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+const SK = "manga-dash-v12";
+const C = {
+  bg: "#111116", surface: "#18181F", card: "#1E1E28", border: "#2A2A38",
+  accent: "#FF6B9D", accentSoft: "#FF6B9D18", accentGlow: "#FF6B9D33",
+  blue: "#5EB5F7", green: "#5DE8A0", yellow: "#F7C948", purple: "#A78BFA",
+  orange: "#FB923C", red: "#ff6666",
+  text: "#E4E4EE", sub: "#7E7E96", dim: "#4A4A60",
+};
+
+// SNS SVG Icons
+function XIcon({ size = 14, color = "#E4E4EE" }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill={color}><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>;
+}
+function ThreadsIcon({ size = 14, color = "#7E7E96" }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill={color}><path d="M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.59 12c.025 3.086.718 5.496 2.057 7.164 1.432 1.781 3.632 2.695 6.54 2.717 2.227-.017 4.074-.585 5.496-1.69 1.318-1.024 2.004-2.36 2.04-3.975-.022-1.187-.396-2.122-1.109-2.78-.684-.63-1.672-.96-2.938-1.012-.186.56-.467 1.079-.835 1.543-.535.675-1.273 1.17-2.154 1.453.138.122.293.23.464.323.586.312 1.358.48 2.282.48l.085-.001c1.694-.043 3.027-.562 3.96-1.54.895-.937 1.37-2.2 1.413-3.753-.062-2.5-1.18-4.406-3.326-5.666-1.258-.738-2.742-1.14-4.278-1.172-.105-.002-.21-.003-.313-.003-2.882 0-5.14.863-6.678 2.555C5.676 8.054 4.91 10.2 4.87 13.087v.01c.043 2.86.806 5.003 2.27 6.37 1.482 1.385 3.587 2.118 6.252 2.177.218.005.44.007.664.007 2.063 0 3.87-.405 5.354-1.202l.883 1.749c-1.722.923-3.82 1.39-6.237 1.39-.24 0-.484-.003-.727-.008h-.005z"/><path d="M12.576 8.11c-1.436.04-2.554.504-3.32 1.378-.73.833-1.102 1.98-1.107 3.41v.024c.005 1.432.377 2.578 1.107 3.41.766.874 1.884 1.338 3.32 1.378.116.003.231.005.345.005 1.107 0 2.062-.283 2.834-.846.815-.594 1.284-1.42 1.351-2.381h-2.135c-.102.523-.359.92-.764 1.18-.428.273-.985.415-1.629.415h-.001c-.89-.023-1.573-.304-2.028-.836-.433-.505-.66-1.225-.675-2.14v-.37c.015-.915.242-1.635.675-2.14.455-.532 1.138-.814 2.028-.836h.005c.64 0 1.193.14 1.624.415.405.26.662.657.764 1.18h2.135c-.067-.961-.536-1.787-1.351-2.381-.772-.563-1.727-.846-2.834-.846-.113 0-.229.002-.345.005z"/></svg>;
+}
+function IGIcon({ size = 14, color = "#E1306C" }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill={color}><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>;
+}
+function TikTokIcon({ size = 14, color = "#00f2ea" }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill={color}><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 0010.86 4.46V13a8.28 8.28 0 005.58 2.17V11.7a4.83 4.83 0 01-3.77-1.78V6.69h3.77z"/></svg>;
+}
+const SNS_ICONS = { x: XIcon, threads: ThreadsIcon, ig: IGIcon, tiktok: TikTokIcon };
+
+function SnsIcon({ id, size = 14, color }) {
+  const Icon = SNS_ICONS[id];
+  if (!Icon) return null;
+  const sns = SNS_LIST.find(s => s.id === id);
+  return <Icon size={size} color={color || sns?.color || C.text} />;
+}
+
+const SNS_LIST = [
+  { id: "x", label: "X", color: "#E4E4EE", group: "a" },
+  { id: "threads", label: "Threads", color: "#7E7E96", group: "a" },
+  { id: "ig", label: "Instagram", color: "#E1306C", group: "b" },
+  { id: "tiktok", label: "TikTok", color: "#00f2ea", group: "b" },
+];
+const GROUP_A = SNS_LIST.filter(s => s.group === "a");
+const GROUP_B = SNS_LIST.filter(s => s.group === "b");
+
+const SNS_STATES = [
+  { id: "none", label: "未対応", color: C.dim, bg: "transparent", bd: C.border },
+  { id: "scheduled", label: "予約済", color: C.blue, bg: "#5EB5F715", bd: "#5EB5F744" },
+  { id: "posted", label: "投稿済", color: C.green, bg: "#5DE8A015", bd: "#5DE8A044" },
+];
+const ssMap = {}; SNS_STATES.forEach(s => { ssMap[s.id] = s; });
+
+const STATUSES = [
+  { id: "none", label: "未着手", color: C.dim, bg: "#4A4A6020" },
+  { id: "plot", label: "台本完了", color: C.purple, bg: "#A78BFA20" },
+  { id: "done", label: "投稿準備済", color: C.yellow, bg: "#F7C94820" },
+  { id: "scheduled", label: "予約済", color: C.blue, bg: "#5EB5F720" },
+  { id: "posted", label: "投稿済", color: C.green, bg: "#5DE8A020" },
+];
+const sMap = {}; STATUSES.forEach(s => { sMap[s.id] = s; });
+
+const STEPS = [
+  { id: "plot", label: "台本" },
+];
+
+const CADENCES = [
+  { id: "daily", label: "毎日", days: 1 }, { id: "every2", label: "2日に1回", days: 2 },
+  { id: "every3", label: "3日に1回", days: 3 }, { id: "weekly", label: "週1回", days: 7 },
+];
+
+const POST_TYPES = [
+  { id: "manga", label: "漫画", icon: "📖", color: C.accent },
+  { id: "video", label: "動画", icon: "🎬", color: C.blue },
+  { id: "illust", label: "イラスト", icon: "🎨", color: C.purple },
+];
+const ptMap = {}; POST_TYPES.forEach(p => { ptMap[p.id] = p; });
+
+const CHAR_GUIDES = { x: { max: 140, label: "140字" }, ig: { max: 2200, label: "2200字" }, tiktok: { max: 150, label: "短いほど◎" }, threads: { max: 500, label: "500字" } };
+
+// SNS metrics config per platform with priorities
+const SNS_METRICS = {
+  x: { label: "X", color: "#E4E4EE", fields: [
+    { key: "imp", label: "インプ", pri: 3 }, { key: "likes", label: "いいね", pri: 3 },
+    { key: "rt", label: "RT", pri: 3 }, { key: "quote", label: "引用RT", pri: 2 },
+    { key: "reply", label: "リプ", pri: 2 }, { key: "profClick", label: "プロフクリック", pri: 1 },
+  ], timing: "24h" },
+  threads: { label: "Threads", color: "#7E7E96", fields: [
+    { key: "imp", label: "インプ", pri: 1 }, { key: "likes", label: "いいね", pri: 1 },
+    { key: "repost", label: "リポスト", pri: 1 }, { key: "reply", label: "リプ", pri: 1 },
+  ], timing: "24h" },
+  ig: { label: "IG", color: "#E1306C", fields: [
+    { key: "reach", label: "リーチ", pri: 2 }, { key: "likes", label: "いいね", pri: 2 },
+    { key: "comments", label: "コメント", pri: 2 }, { key: "saves", label: "保存", pri: 3 },
+    { key: "shares", label: "シェア", pri: 1 },
+  ], timing: "7d" },
+  tiktok: { label: "TikTok", color: "#00f2ea", fields: [
+    { key: "views", label: "再生数", pri: 2 }, { key: "likes", label: "いいね", pri: 2 },
+    { key: "comments", label: "コメント", pri: 1 }, { key: "shares", label: "シェア", pri: 1 },
+    { key: "profVisit", label: "プロフ遷移", pri: 3 },
+  ], timing: "7d" },
+};
+
+
+
+const INIT = { episodes: [], nextId: 1, projectName: "ぷわんな毎日", defaultCadence: "daily", weeklyFollowers: [], weeklyReviews: [], dismissedTasks: [] };
+
+const GAS_URL_KEY = "manga-dash-gas-url";
+
+// --- GAS Sync (data read/write only) ---
+async function gasGet(url) {
+  const res = await fetch(url, { redirect: "follow" });
+  const json = await res.json();
+  if (json.success && json.data) return json.data;
+  return null;
+}
+
+async function gasPost(url, data) {
+  await fetch(url, {
+    method: "POST",
+    redirect: "follow",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ action: "save", data }),
+  });
+}
+
+function copyToClip(text) { try { navigator.clipboard.writeText(text); } catch(e){} }
+
+function addDaysTo(ds, n) { const d = new Date(ds); d.setDate(d.getDate() + n); return d.toISOString().split("T")[0]; }
+function toISO(d) { return d.toISOString().split("T")[0]; }
+function fmtDate(d) { if (!d) return "\u2014"; const t = new Date(d), w = ["日","月","火","水","木","金","土"]; return (t.getMonth()+1)+"/"+t.getDate()+"("+w[t.getDay()]+")"; }
+function daysBetween(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
+function isSunday(d) { return new Date(d).getDay() === 0; }
+
+function deriveStatus(ep) {
+  const st = ep.steps || {}, ss = ep.snsState || {};
+  const allPosted = SNS_LIST.every(s => ss[s.id] === "posted");
+  const allScheduled = SNS_LIST.every(s => ss[s.id] === "scheduled");
+  if (allPosted) return "posted";
+  if (allScheduled) return "scheduled";
+  if (ep.postDate) return "done";
+  if (st.plot) return "plot";
+  return "none";
+}
+
+// Auto-check scheduled -> posted based on delivery times
+function autoUpdateSnsState(ep) {
+  if (!ep.postDate) return ep.snsState || {};
+  const now = new Date();
+  const ss = { ...(ep.snsState || {}) };
+  const xDate = new Date(ep.postDate + "T19:50:00");
+  const thDate = new Date(ep.postDate + "T19:50:00");
+  const igDate = new Date(addDaysTo(ep.postDate, 1) + "T12:00:00");
+  const ttDate = new Date(addDaysTo(ep.postDate, 1) + "T18:00:00");
+  const times = { x: xDate, threads: thDate, ig: igDate, tiktok: ttDate };
+  for (const sns of SNS_LIST) {
+    if (ss[sns.id] === "scheduled" && times[sns.id] && now >= times[sns.id]) {
+      ss[sns.id] = "posted";
+    }
+  }
+  return ss;
+}
+
+function getDeliverySchedule(ep) {
+  if (!ep.postDate) return [];
+  return [
+    { sns: "x", date: ep.postDate, time: "19:50", label: "X" },
+    { sns: "threads", date: ep.postDate, time: "19:50", label: "Threads" },
+    { sns: "ig", date: addDaysTo(ep.postDate, 1), time: "12:00", label: "IG" },
+    { sns: "tiktok", date: addDaysTo(ep.postDate, 1), time: "18:00", label: "TikTok" },
+  ];
+}
+
+// Generate data input tasks for today
+function generateTasks(eps, today, weeklyFollowers, dismissedTasks, dnMap) {
+  const tasks = [];
+  const dismissed = dismissedTasks || [];
+  function dn(ep) { return (dnMap || {})[ep.id] || "?"; }
+  for (const ep of eps) {
+    if (!ep.postDate) continue;
+    const xDate = ep.postDate;
+    const igDate = addDaysTo(ep.postDate, 1);
+    const daysFromX = daysBetween(xDate, today);
+    const daysFromIG = daysBetween(igDate, today);
+
+    // X/Threads 24h check (1+ day after X post date, show until filled)
+    if (daysFromX >= 1) {
+      const taskKeyX = ep.id + "-x-d1";
+      const xm = ep.snsMetrics?.x?.d1 || {};
+      const isEmpty = !SNS_METRICS.x.fields.some(f => xm[f.key]);
+      if (isEmpty && !dismissed.includes(taskKeyX)) {
+        const overdue = daysFromX > 1;
+        tasks.push({ type: "input", ep, sns: "x", timing: "24h", pri: 3, key: taskKeyX, label: `ep.${dn(ep)} X数値入力（24h${overdue ? " ⚠" + daysFromX + "日経過" : "経過"}）` });
+      }
+      const taskKeyTh = ep.id + "-threads-d1";
+      const tm = ep.snsMetrics?.threads?.d1 || {};
+      const tEmpty = !SNS_METRICS.threads.fields.some(f => tm[f.key]);
+      if (tEmpty && !dismissed.includes(taskKeyTh)) tasks.push({ type: "input", ep, sns: "threads", timing: "24h", pri: 1, key: taskKeyTh, label: `ep.${dn(ep)} Threads数値入力（24h経過）` });
+    }
+    // IG/TikTok 7d check (7+ days after IG post date, show until filled)
+    if (daysFromIG >= 7) {
+      const taskKeyIG = ep.id + "-ig-d7";
+      const igm = ep.snsMetrics?.ig?.d7 || {};
+      const igEmpty = !SNS_METRICS.ig.fields.some(f => igm[f.key]);
+      if (igEmpty && !dismissed.includes(taskKeyIG)) tasks.push({ type: "input", ep, sns: "ig", timing: "7d", pri: 3, key: taskKeyIG, label: `ep.${dn(ep)} IG数値入力（7日経過）` });
+      const taskKeyTT = ep.id + "-tiktok-d7";
+      const ttm = ep.snsMetrics?.tiktok?.d7 || {};
+      const ttEmpty = !SNS_METRICS.tiktok.fields.some(f => ttm[f.key]);
+      if (ttEmpty && !dismissed.includes(taskKeyTT)) tasks.push({ type: "input", ep, sns: "tiktok", timing: "7d", pri: 2, key: taskKeyTT, label: `ep.${dn(ep)} TikTok数値入力（7日経過）` });
+    }
+    // IG 30d save check (30+ days, show until filled)
+    if (daysFromIG >= 30) {
+      const taskKey30 = ep.id + "-ig-d30";
+      const igm30 = ep.snsMetrics?.ig?.d30 || {};
+      const ig30Empty = !igm30.saves;
+      if (ig30Empty && !dismissed.includes(taskKey30)) tasks.push({ type: "input", ep, sns: "ig", timing: "30d", pri: 3, key: taskKey30, label: `ep.${dn(ep)} IG保存数更新（30日経過）` });
+    }
+  }
+  // Weekly follower check (Sunday)
+  if (isSunday(today)) {
+    const thisWeek = weeklyFollowers?.find(w => w.date === today);
+    if (!thisWeek) tasks.push({ type: "followers", pri: 3, key: "followers-" + today, label: "週次フォロワー記録" });
+  }
+  tasks.sort((a, b) => b.pri - a.pri);
+  return tasks;
+}
+
+const inputS = { background: C.bg, border: "1px solid " + C.border, borderRadius: 8, padding: "8px 10px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
+function btnS(color) { return { background: color + "22", color, border: "1px solid " + color + "44", borderRadius: 8, padding: "8px 18px", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }; }
+const ghostBtn = { background: "transparent", color: C.sub, border: "1px solid " + C.border, borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontSize: 13, fontFamily: "inherit" };
+const cellS = { padding: "10px 8px", textAlign: "center", whiteSpace: "nowrap" };
+const priColors = { 3: C.accent, 2: C.yellow, 1: C.dim };
+const priLabels = { 3: "★★★", 2: "★★☆", 1: "★☆☆" };
+
+function Chk({ on, toggle }) {
+  return <button onClick={toggle} style={{ width: 22, height: 22, borderRadius: 5, cursor: "pointer", border: on ? "2px solid " + C.green : "2px solid " + C.border, background: on ? C.green + "30" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: C.green, fontFamily: "inherit", padding: 0 }}>{on ? "✓" : ""}</button>;
+}
+function StatusPill({ status }) {
+  const s = sMap[status] || sMap.none;
+  return <span style={{ background: s.bg, color: s.color, border: "1px solid " + s.color + "44", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, display: "inline-block", textAlign: "center", minWidth: 60 }}>{s.label}</span>;
+}
+function SnsStatePill({ value }) {
+  const s = ssMap[value || "none"] || ssMap.none;
+  return <span style={{ background: s.bg, color: s.color, border: "1px solid " + s.bd, borderRadius: 6, padding: "2px 8px", fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>{s.label}</span>;
+}
+function SnsStateBtn({ value, onChange }) {
+  const ids = SNS_STATES.map(s => s.id);
+  function cycle() { const i = ids.indexOf(value || "none"); onChange(ids[(i + 1) % ids.length]); }
+  const s = ssMap[value || "none"] || ssMap.none;
+  return <button onClick={cycle} style={{ background: s.bg, color: s.color, border: "1px solid " + s.bd, borderRadius: 6, padding: "2px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", lineHeight: "22px" }}>{s.label}</button>;
+}
+function CopyBtn({ text }) {
+  const [c, setC] = useState(false);
+  return <button onClick={e => { e.stopPropagation(); copyToClip(text); setC(true); setTimeout(() => setC(false), 1500); }} style={{ background: "none", border: "1px solid " + C.border, borderRadius: 5, padding: "2px 7px", cursor: "pointer", fontSize: 10, color: c ? C.green : C.sub, fontFamily: "inherit" }}>{c ? "✓" : "📋"}</button>;
+}
+function CharCount({ text, snsId }) {
+  const g = CHAR_GUIDES[snsId]; if (!g) return null;
+  const len = (text || "").length, over = g.max && len > g.max;
+  return <span style={{ fontSize: 10, color: over ? C.red : C.dim, marginLeft: 4 }}>{len + " / " + g.label}</span>;
+}
+
+function CalendarPicker({ value, onChange, label }) {
+  const [open, setOpen] = useState(false);
+  const [vd, setVd] = useState(() => value ? new Date(value) : new Date());
+  const ref = useRef(null);
+  useEffect(() => { function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); } document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, []);
+  const y = vd.getFullYear(), mo = vd.getMonth();
+  const fd = new Date(y, mo, 1).getDay(), dim = new Date(y, mo + 1, 0).getDate();
+  const today = toISO(new Date());
+  const days = []; for (let i = 0; i < fd; i++) days.push(null); for (let i = 1; i <= dim; i++) days.push(i);
+  const mN = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+  const wD = ["日","月","火","水","木","金","土"];
+  function sel(day) { onChange(y + "-" + String(mo+1).padStart(2,"0") + "-" + String(day).padStart(2,"0")); setOpen(false); }
+  return <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+    <button onClick={() => setOpen(!open)} style={{ ...inputS, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, minWidth: 130, justifyContent: "space-between" }}>
+      <span>{value ? fmtDate(value) : (label || "日付を選択")}</span><span style={{ fontSize: 10, color: C.sub }}>📅</span>
+    </button>
+    {open && <div style={{ position: "absolute", top: "100%", left: 0, zIndex: 100, marginTop: 4, background: C.card, border: "1px solid " + C.border, borderRadius: 12, padding: 12, width: 260, boxShadow: "0 12px 40px rgba(0,0,0,.5)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <button onClick={() => setVd(new Date(y, mo-1, 1))} style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", fontSize: 16, fontFamily: "inherit" }}>◀</button>
+        <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{y+"年 "+mN[mo]}</span>
+        <button onClick={() => setVd(new Date(y, mo+1, 1))} style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", fontSize: 16, fontFamily: "inherit" }}>▶</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, textAlign: "center" }}>
+        {wD.map(w => <div key={w} style={{ fontSize: 10, color: C.dim, padding: 4 }}>{w}</div>)}
+        {days.map((d, i) => { if (d === null) return <div key={"e"+i} />; const ds = y + "-" + String(mo+1).padStart(2,"0") + "-" + String(d).padStart(2,"0"); const isSel = ds === value, isT = ds === today;
+          return <button key={i} onClick={() => sel(d)} style={{ background: isSel ? C.accent : isT ? C.accent + "22" : "transparent", color: isSel ? "#fff" : isT ? C.accent : C.text, border: "none", borderRadius: 6, padding: 6, cursor: "pointer", fontSize: 12, fontWeight: isSel ? 700 : 400, fontFamily: "inherit" }}>{d}</button>;
+        })}
+      </div>
+    </div>}
+  </div>;
+}
+
+function PostTypePicker({ value, onChange }) {
+  return <div style={{ display: "flex", gap: 4 }}>
+    {POST_TYPES.map(pt => { const active = (value || "manga") === pt.id;
+      return <button key={pt.id} onClick={() => onChange(pt.id)} style={{ background: active ? pt.color + "22" : "transparent", color: active ? pt.color : C.dim, border: "1px solid " + (active ? pt.color + "44" : C.border), borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}><span>{pt.icon}</span><span>{pt.label}</span></button>;
+    })}
+  </div>;
+}
+
+function StoryDropZone({ value, onChange }) {
+  const [dr, setDr] = useState(false);
+  function hd(e) { e.preventDefault(); setDr(false); const f = Array.from(e.dataTransfer.files).find(f => f.name.endsWith(".md") || f.name.endsWith(".txt")); if (!f) return; const r = new FileReader(); r.onload = ev => { onChange(value ? value + "\n\n--- " + f.name + " ---\n" + ev.target.result : ev.target.result); }; r.readAsText(f, "UTF-8"); }
+  return <div onDragOver={e => { e.preventDefault(); setDr(true); }} onDragLeave={() => setDr(false)} onDrop={hd} style={{ position: "relative", border: dr ? "2px dashed " + C.accent : "1px solid " + C.border, borderRadius: 10, background: dr ? C.accent + "0A" : C.bg }}>
+    <textarea value={value || ""} onChange={e => onChange(e.target.value)} placeholder={"台本メモ...\n💡 .md/.txt ドラッグ&ドロップ可"} rows={5} style={{ ...inputS, width: "100%", resize: "vertical", border: "none", background: "transparent" }} />
+  </div>;
+}
+
+function ProgressBar({ ep }) {
+  const st = ep.steps || {};
+  const done = STEPS.filter(s => st[s.id]).length, pct = (done / STEPS.length) * 100;
+  const sc = sMap[deriveStatus(ep)] || sMap.none;
+  return <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div style={{ flex: 1, height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}>
+      <div style={{ height: "100%", width: pct + "%", background: sc.color, borderRadius: 2, transition: "width .3s" }} />
+    </div>
+    <span style={{ fontSize: 10, color: C.sub, minWidth: 30 }}>{done + "/" + STEPS.length}</span>
+  </div>;
+}
+
+// --- TASK INPUT ROW ---
+function TaskInputRow({ task, onSave, onDismiss }) {
+  const [vals, setVals] = useState({});
+  const metrics = SNS_METRICS[task.sns];
+  if (!metrics) return null;
+  const timingKey = task.timing === "24h" ? "d1" : task.timing === "7d" ? "d7" : "d30";
+  return <div style={{ background: C.surface, borderRadius: 10, padding: 12, border: "1px solid " + C.border, marginBottom: 6 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <span style={{ fontSize: 11, color: priColors[task.pri], fontWeight: 700 }}>{priLabels[task.pri]}</span>
+      <span style={{ fontSize: 12, color: C.text, fontWeight: 600, flex: 1 }}>{task.label}</span>
+      {task.pri === 1 && <span style={{ fontSize: 10, color: C.dim }}>(任意)</span>}
+      <button onClick={onDismiss} title="このタスクを非表示" style={{ background: "none", border: "1px solid " + C.border, borderRadius: 5, padding: "2px 8px", cursor: "pointer", fontSize: 10, color: C.dim, fontFamily: "inherit" }}>✕ スキップ</button>
+    </div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      {metrics.fields.filter(f => task.timing === "30d" ? f.key === "saves" : true).map(f => (
+        <div key={f.key} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ fontSize: 10, color: C.sub }}>{f.label}</span>
+          <input value={vals[f.key] || ""} onChange={e => setVals({ ...vals, [f.key]: e.target.value })}
+            style={{ ...inputS, width: 64, fontSize: 13, fontWeight: 600, textAlign: "center", padding: "4px 6px", color: metrics.color }} placeholder="\u2014" />
+        </div>
+      ))}
+      <button onClick={() => { onSave(task.ep.id, task.sns, timingKey, vals); setVals({}); }}
+        style={{ ...btnS(C.green), fontSize: 11, padding: "4px 12px" }}>保存</button>
+    </div>
+  </div>;
+}
+
+function FollowerInputRow({ onSave }) {
+  const [vals, setVals] = useState({});
+  return <div style={{ background: C.surface, borderRadius: 10, padding: 12, border: "1px solid " + C.border, marginBottom: 6 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <span style={{ fontSize: 11, color: C.accent, fontWeight: 700 }}>🔔</span>
+      <span style={{ fontSize: 12, color: C.text, fontWeight: 600 }}>週次フォロワー記録</span>
+    </div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      {SNS_LIST.map(sns => (
+        <div key={sns.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <SnsIcon id={sns.id} size={14} />
+          <input value={vals[sns.id] || ""} onChange={e => setVals({ ...vals, [sns.id]: e.target.value })}
+            style={{ ...inputS, width: 64, fontSize: 13, fontWeight: 600, textAlign: "center", padding: "4px 6px" }} placeholder="\u2014" />
+        </div>
+      ))}
+      <button onClick={() => { onSave(vals); setVals({}); }}
+        style={{ ...btnS(C.green), fontSize: 11, padding: "4px 12px" }}>保存</button>
+    </div>
+  </div>;
+}
+
+// --- 2-COLUMN SCHEDULE TIMELINE ---
+function ScheduleTimeline({ eps, onOpenId, openId, dn }) {
+  const dated = eps.filter(e => e.postDate).sort((a, b) => a.postDate.localeCompare(b.postDate));
+  if (dated.length === 0) return <div style={{ textAlign: "center", padding: 40, color: C.dim }}>投稿日が設定されたエピソードがありません</div>;
+
+  // Build date map: X/Threads = postDate, IG/TikTok = postDate + 1
+  const groupA = {}; // date -> ep (X + Threads)
+  const groupB = {}; // date -> ep (IG + TikTok, one day after)
+  dated.forEach(ep => {
+    groupA[ep.postDate] = ep;
+    groupB[addDaysTo(ep.postDate, 1)] = ep;
+  });
+
+  // Collect all dates
+  const allDatesSet = new Set();
+  Object.keys(groupA).forEach(d => allDatesSet.add(d));
+  Object.keys(groupB).forEach(d => allDatesSet.add(d));
+  const allDays = Array.from(allDatesSet).sort();
+  // Fill gaps
+  if (allDays.length > 1) {
+    const filled = [];
+    let cur = allDays[0];
+    const last = allDays[allDays.length - 1];
+    while (cur <= last) { filled.push(cur); cur = addDaysTo(cur, 1); }
+    allDays.length = 0;
+    filled.forEach(d => allDays.push(d));
+  }
+
+  const today = toISO(new Date());
+
+  return <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 1fr", gap: 8, padding: "8px 12px", borderBottom: "1px solid " + C.border }}>
+      <div style={{ fontSize: 11, color: C.sub, fontWeight: 600, textAlign: "center" }}>日付</div>
+      <div style={{ fontSize: 11, color: C.sub, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><SnsIcon id="x" size={13} /><SnsIcon id="threads" size={13} /><span>19:50</span></div>
+      <div style={{ fontSize: 11, color: C.sub, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><SnsIcon id="ig" size={13} /><SnsIcon id="tiktok" size={13} /><span>翌日</span></div>
+    </div>
+    {allDays.map(day => {
+      const isToday = day === today, isPast = day < today;
+      const epA = groupA[day] || null;
+      const epB = groupB[day] || null;
+
+      function renderCell(ep, group) {
+        if (!ep) return <div style={{ fontSize: 11, color: C.dim, fontStyle: "italic", padding: "6px 0" }}>{"\u2014"}</div>;
+        const isOpen = openId === ep.id;
+        const snsIds = group === "a" ? ["x", "threads"] : ["ig", "tiktok"];
+        return <div onClick={() => onOpenId(isOpen ? null : ep.id)}
+          style={{ padding: "6px 10px", borderRadius: 8, cursor: "pointer", background: isOpen ? C.accent + "15" : "transparent", border: "1px solid " + (isOpen ? C.accent + "44" : "transparent"), transition: "all .15s" }}
+          onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = C.card; }}
+          onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = "transparent"; }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 11, color: C.sub }}>#{dn(ep)}</span>
+            <span style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{ep.title || "無題"}</span>
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              {snsIds.map(sid => {
+                const sv = (ep.snsState || {})[sid] || "none";
+                const stateColor = sv === "posted" ? C.green : sv === "scheduled" ? C.blue : C.dim;
+                return <SnsIcon key={sid} id={sid} size={13} color={stateColor} />;
+              })}
+            </div>
+          </div>
+        </div>;
+      }
+
+      return <div key={day} style={{ display: "grid", gridTemplateColumns: "90px 1fr 1fr", gap: 8, padding: "4px 12px", borderRadius: 8, background: isToday ? C.accentSoft : "transparent", border: isToday ? "1px solid " + C.accent + "33" : "1px solid transparent", opacity: isPast && !epA && !epB ? .4 : 1 }}>
+        <div style={{ fontSize: 12, fontWeight: isToday ? 700 : 400, color: isToday ? C.accent : C.sub, paddingTop: 6 }}>
+          {fmtDate(day)}
+          {isToday && <div style={{ fontSize: 9, color: C.accent }}>TODAY</div>}
+        </div>
+        {renderCell(epA, "a")}
+        {renderCell(epB, "b")}
+      </div>;
+    })}
+  </div>;
+}
+
+// --- DETAIL PANEL (redesigned) ---
+function DetailPanel({ ep, update, onClose, onDelete, allEps, displayNum }) {
+  const status = deriveStatus(ep);
+  const st = ep.steps || {};
+  const [dtab, setDtab] = useState("basic");
+
+  const schedule = getDeliverySchedule(ep);
+
+  // Reply generator
+  function genReply(snsId) {
+    const sorted = [...allEps].filter(e => e.postDate).sort((a, b) => a.postDate.localeCompare(b.postDate));
+    const ep1 = sorted[0] && ((sorted[0].postUrls || {})[snsId] || "").trim() ? sorted[0] : null;
+    const myIdx = sorted.findIndex(e => e.id === ep.id);
+    const prevEp = myIdx > 0 ? sorted.slice(0, myIdx).filter(e => ((e.postUrls || {})[snsId] || "").trim()).pop() : null;
+    const lines = [];
+    if (prevEp) lines.push("▼ 前のおはなし\n" + (prevEp.postUrls || {})[snsId]);
+    if (ep1 && ep1.id !== (prevEp || {}).id && ep1.id !== ep.id) lines.push("▼ 第1話はこちら\n" + (ep1.postUrls || {})[snsId]);
+    return lines.length > 0 ? lines.join("\n\n") : null;
+  }
+
+  const detailTabs = [
+    { id: "basic", label: "📋 基本情報" },
+    { id: "sns", label: "📱 SNS配信" },
+    { id: "perf", label: "📊 パフォーマンス" },
+  ];
+
+  return <div style={{ background: C.card, borderRadius: 16, padding: 20, marginBottom: 16, border: "1px solid " + C.accent + "33", boxShadow: "0 8px 32px " + C.accentGlow }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: C.accent }}>{"#" + displayNum + " " + (ep.title || "無題")}</span>
+        <StatusPill status={status} />
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={() => { if (confirm("削除しますか？")) onDelete(); }} style={{ background: "none", border: "1px solid #ff444444", color: C.red, borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}>削除</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", fontSize: 20, fontFamily: "inherit" }}>✕</button>
+      </div>
+    </div>
+    <nav style={{ display: "flex", gap: 2, marginBottom: 14 }}>
+      {detailTabs.map(t => <button key={t.id} onClick={() => setDtab(t.id)} style={{ background: dtab === t.id ? C.bg : "transparent", color: dtab === t.id ? C.accent : C.sub, border: "1px solid " + (dtab === t.id ? C.accent + "44" : C.border), padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 500, fontFamily: "inherit" }}>{t.label}</button>)}
+    </nav>
+
+    {dtab === "basic" && <>
+      <div style={{ marginBottom: 14, padding: 12, background: C.surface, borderRadius: 10, border: "1px solid " + C.border }}>
+        <div style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>台本ステータス（作画はファクトリーで管理）</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+          {STEPS.map(step => <label key={step.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+            <Chk on={!!st[step.id]} toggle={() => update({ steps: { ...st, [step.id]: !st[step.id] } })} />
+            <span style={{ fontSize: 13, color: st[step.id] ? C.green : C.sub }}>{step.label}</span>
+          </label>)}
+        </div>
+        <ProgressBar ep={ep} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "60px 1fr 200px", gap: 10, marginBottom: 14 }}>
+        <div><div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>話数</div><div style={{ ...inputS, background: "transparent", border: "1px solid " + C.border, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: C.accent }}>#{displayNum}</div></div>
+        <div><div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>タイトル</div><input value={ep.title || ""} onChange={e => update({ title: e.target.value })} style={{ ...inputS, width: "100%" }} /></div>
+        <div><div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>X配信日</div><CalendarPicker value={ep.postDate || ""} onChange={v => update({ postDate: v })} label="日付を選択" /></div>
+      </div>
+      <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 11, color: C.sub }}>タイプ</span>
+        <PostTypePicker value={ep.postType} onChange={v => update({ postType: v })} />
+      </div>
+
+      {/* Script Memo */}
+      <div style={{ marginBottom: 14, padding: 12, background: C.surface, borderRadius: 10, border: "1px solid " + C.border }}>
+        <div style={{ fontSize: 11, color: C.sub, marginBottom: 6 }}>💡 アイデアメモ（入れたい要素・話の骨子）</div>
+        <textarea value={ep.scriptMemo || ""} onChange={e => update({ scriptMemo: e.target.value })} placeholder="例: 「既読無視」がテーマ。荷物が透明で中身が丸見え。ぷわんが目隠しシールを貼る。" rows={3} style={{ ...inputS, width: "100%", fontSize: 12, resize: "vertical" }} />
+      </div>
+
+      {/* Script Content */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>📝 台本</div>
+        <StoryDropZone value={ep.story} onChange={v => update({ story: v })} />
+      </div>
+    </>}
+
+    {dtab === "sns" && <>
+      {/* Delivery Schedule */}
+      <div style={{ marginBottom: 16, padding: 12, background: C.surface, borderRadius: 10, border: "1px solid " + C.border }}>
+        <div style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>📅 配信スケジュール</div>
+        {schedule.length === 0 ? <div style={{ fontSize: 12, color: C.dim }}>X配信日を設定してください</div>
+        : <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {schedule.map(s => {
+            const sv = (ep.snsState || {})[s.sns] || "none";
+            return <div key={s.sns} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 80 }}>
+                <SnsIcon id={s.sns} size={16} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: SNS_LIST.find(x => x.id === s.sns)?.color }}>{s.label}</span>
+              </div>
+              <span style={{ fontSize: 12, color: C.sub, minWidth: 100 }}>{fmtDate(s.date)} {s.time}</span>
+              <SnsStateBtn value={sv} onChange={v => update({ snsState: { ...(ep.snsState || {}), [s.sns]: v } })} />
+            </div>;
+          })}
+        </div>}
+      </div>
+      {/* Captions */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>📱 投稿文</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+          {SNS_LIST.map(sns => { let capRaw = ((ep.captions || {})[sns.id]) || ""; const capText = typeof capRaw === "object" ? (capRaw.text || capRaw.caption || JSON.stringify(capRaw)) : String(capRaw);
+            return <div key={sns.id} style={{ background: C.surface, borderRadius: 10, padding: 10, border: "1px solid " + C.border }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <SnsIcon id={sns.id} size={14} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: sns.color }}>{sns.label}</span>
+                  <CharCount text={capText} snsId={sns.id} />
+                </div>
+                <CopyBtn text={capText} />
+              </div>
+              <textarea value={capText} rows={3} onChange={e => update({ captions: { ...(ep.captions || {}), [sns.id]: e.target.value } })} placeholder={sns.label + "用..."} style={{ ...inputS, width: "100%", fontSize: 12, resize: "vertical" }} />
+            </div>; })}
+        </div>
+      </div>
+      {/* Script Link */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>📄 台本リンク</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <input value={ep.scriptLink || ""} onChange={e => update({ scriptLink: e.target.value })} placeholder="Google Drive URL..." style={{ ...inputS, flex: 1, fontSize: 11 }} />
+          {ep.scriptLink && <a href={ep.scriptLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: C.blue, textDecoration: "none" }}>📄 開く</a>}
+        </div>
+        {ep.scriptMemo && <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>メモ: {ep.scriptMemo}</div>}
+      </div>
+      {/* Post URLs */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>🔗 投稿URL</div>
+        {SNS_LIST.map(sns => {
+          const url = ((ep.postUrls || {})[sns.id]) || "";
+          return <div key={sns.id} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 52 }}><SnsIcon id={sns.id} size={14} /></div>
+            <input value={url} onChange={e => update({ postUrls: { ...(ep.postUrls || {}), [sns.id]: e.target.value } })} placeholder="https://..." style={{ ...inputS, flex: 1, fontSize: 11 }} />
+            {url && <a href={url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: C.blue, textDecoration: "none" }}>↗</a>}
+          </div>;
+        })}
+      </div>
+      {/* Reply text for X/Threads */}
+      <div>
+        <div style={{ fontSize: 11, color: C.sub, marginBottom: 6 }}>📎 リプ文</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {["x", "threads"].map(snsId => {
+            const replyText = genReply(snsId);
+            if (!replyText) return <div key={snsId} style={{ fontSize: 10, color: C.dim, display: "flex", alignItems: "center", gap: 4 }}><SnsIcon id={snsId} size={12} color={C.dim} /> 前話URL未登録</div>;
+            return <div key={snsId} style={{ background: C.bg, borderRadius: 8, padding: 8, border: "1px solid " + C.border, flex: 1, minWidth: 180 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}><SnsIcon id={snsId} size={13} /><span style={{ fontSize: 10, fontWeight: 600, color: SNS_LIST.find(s => s.id === snsId)?.color }}>リプ</span></div>
+                <CopyBtn text={replyText} />
+              </div>
+              <div style={{ fontSize: 11, color: C.text, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{replyText}</div>
+            </div>;
+          })}
+        </div>
+      </div>
+    </>}
+
+    {dtab === "perf" && <>
+      <div style={{ fontSize: 11, color: C.sub, marginBottom: 12 }}>各SNSの数値を記録。タイミング別に管理されます。</div>
+      {Object.entries(SNS_METRICS).map(([snsId, config]) => {
+        const snsData = ep.snsMetrics?.[snsId] || {};
+        const timings = snsId === "x" || snsId === "threads" ? ["d1"] : ["d7", "d30"];
+        const timingLabels = { d1: "24h", d7: "7日", d30: "30日" };
+        return <div key={snsId} style={{ background: C.surface, borderRadius: 10, padding: 12, border: "1px solid " + C.border, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: config.color, marginBottom: 8 }}>{config.label}</div>
+          {timings.map(t => (
+            <div key={t} style={{ marginBottom: 6 }}>
+              <div style={{ fontSize: 10, color: C.dim, marginBottom: 4 }}>{timingLabels[t]}時点</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {config.fields.map(f => {
+                  const val = (snsData[t] || {})[f.key] || "";
+                  return <div key={f.key} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 10, color: C.sub }}>{f.label}</span>
+                    <input value={val} onChange={e => {
+                      const newMetrics = { ...(ep.snsMetrics || {}) };
+                      if (!newMetrics[snsId]) newMetrics[snsId] = {};
+                      if (!newMetrics[snsId][t]) newMetrics[snsId][t] = {};
+                      newMetrics[snsId][t][f.key] = e.target.value;
+                      update({ snsMetrics: newMetrics });
+                    }} style={{ ...inputS, width: 64, fontSize: 13, fontWeight: 600, textAlign: "center", padding: "3px 6px", color: config.color }} placeholder="\u2014" />
+                  </div>;
+                })}
+              </div>
+            </div>
+          ))}
+        </div>;
+      })}
+      <div>
+        <div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>📝 気づきメモ</div>
+        <textarea value={ep.analyticsNote || ""} onChange={e => update({ analyticsNote: e.target.value })} placeholder="気づきメモ..." rows={2} style={{ ...inputS, width: "100%", fontSize: 12, resize: "vertical" }} />
+      </div>
+    </>}
+  </div>;
+}
+
+// --- ANALYTICS TAB ---
+function AnalyticsTab({ eps, data, save, dn }) {
+  const weeklyFollowers = data.weeklyFollowers || [];
+  const weeklyReviews = data.weeklyReviews || [];
+
+  // Episode ranking by X likes+RT
+  const ranked = eps.filter(ep => ep.snsMetrics?.x?.d1).map(ep => {
+    const xd = ep.snsMetrics.x.d1;
+    const score = (parseInt(xd.likes) || 0) + (parseInt(xd.rt) || 0) * 2 + (parseInt(xd.quote) || 0) * 3;
+    const igSaves = parseInt(ep.snsMetrics?.ig?.d7?.saves) || 0;
+    return { ep, score, igSaves, xLikes: parseInt(xd.likes) || 0, xRT: parseInt(xd.rt) || 0 };
+  }).sort((a, b) => b.score - a.score);
+
+  return <div>
+    {/* Episode Ranking */}
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: C.accent, marginBottom: 12 }}>🏆 エピソード比較</div>
+      {ranked.length === 0 ? <div style={{ color: C.dim, fontSize: 12 }}>まだデータがありません。投稿後に数値を入力してください。</div>
+      : <div style={{ background: C.surface, borderRadius: 12, overflow: "hidden", border: "1px solid " + C.border }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead><tr style={{ background: C.card }}>
+            <th style={{ padding: "8px", textAlign: "left", color: C.sub, fontSize: 11 }}>順位</th>
+            <th style={{ padding: "8px", textAlign: "left", color: C.sub, fontSize: 11 }}>エピソード</th>
+            <th style={{ padding: "8px", textAlign: "center", color: C.sub, fontSize: 11 }}>X いいね</th>
+            <th style={{ padding: "8px", textAlign: "center", color: C.sub, fontSize: 11 }}>X RT</th>
+            <th style={{ padding: "8px", textAlign: "center", color: C.sub, fontSize: 11 }}>IG 保存</th>
+            <th style={{ padding: "8px", textAlign: "center", color: C.sub, fontSize: 11 }}>スコア</th>
+          </tr></thead>
+          <tbody>{ranked.map((r, i) => (
+            <tr key={r.ep.id} style={{ borderBottom: "1px solid " + C.border + "33" }}>
+              <td style={{ padding: "8px", fontWeight: 700, color: i === 0 ? C.accent : i === 1 ? C.yellow : i === 2 ? C.orange : C.sub }}>{i + 1}</td>
+              <td style={{ padding: "8px", fontWeight: 500 }}>#{dn(r.ep)} {r.ep.title || "無題"}</td>
+              <td style={{ padding: "8px", textAlign: "center", color: C.accent }}>{r.xLikes}</td>
+              <td style={{ padding: "8px", textAlign: "center", color: C.blue }}>{r.xRT}</td>
+              <td style={{ padding: "8px", textAlign: "center", color: C.green }}>{r.igSaves}</td>
+              <td style={{ padding: "8px", textAlign: "center", fontWeight: 700, color: C.text }}>{r.score}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>}
+    </div>
+
+    {/* Follower Trend */}
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: C.blue, marginBottom: 12 }}>📈 フォロワー推移（週次）</div>
+      {weeklyFollowers.length === 0 ? <div style={{ color: C.dim, fontSize: 12 }}>毎週日曜にフォロワー数を記録してください。</div>
+      : <div style={{ background: C.surface, borderRadius: 12, padding: 16, border: "1px solid " + C.border, overflowX: "auto" }}>
+        <div style={{ display: "flex", gap: 16, minWidth: weeklyFollowers.length * 100 }}>
+          {weeklyFollowers.map((w, i) => {
+            const prev = i > 0 ? weeklyFollowers[i - 1] : null;
+            return <div key={w.date} style={{ textAlign: "center", minWidth: 80 }}>
+              <div style={{ fontSize: 10, color: C.dim, marginBottom: 6 }}>{fmtDate(w.date)}</div>
+              {SNS_LIST.map(sns => {
+                const val = parseInt(w[sns.id]) || 0;
+                const pv = prev ? parseInt(prev[sns.id]) || 0 : 0;
+                const diff = prev ? val - pv : 0;
+                return <div key={sns.id} style={{ fontSize: 12, color: sns.color, marginBottom: 2 }}>
+                  <span style={{ fontWeight: 600 }}>{val}</span>
+                  {diff !== 0 && <span style={{ fontSize: 10, color: diff > 0 ? C.green : C.red, marginLeft: 4 }}>{diff > 0 ? "+" : ""}{diff}</span>}
+                </div>;
+              })}
+            </div>;
+          })}
+        </div>
+      </div>}
+    </div>
+
+    {/* Weekly Review */}
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.purple }}>📝 週次レビュー</div>
+        <button onClick={() => {
+          const newReview = { date: toISO(new Date()), memo: "" };
+          save({ ...data, weeklyReviews: [...weeklyReviews, newReview] });
+        }} style={{ ...btnS(C.purple), fontSize: 11, padding: "5px 14px" }}>＋ 新規レビュー</button>
+      </div>
+      {weeklyReviews.length === 0 ? <div style={{ color: C.dim, fontSize: 12 }}>「＋ 新規レビュー」で週次レビューメモを作成できます。</div>
+      : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {[...weeklyReviews].reverse().map((r, i) => (
+          <div key={i} style={{ background: C.surface, borderRadius: 12, padding: 16, border: "1px solid " + C.border }}>
+            <div style={{ fontSize: 11, color: C.dim, marginBottom: 8 }}>{fmtDate(r.date)}</div>
+            <div>
+              <div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>📝 メモ</div>
+              <textarea value={r.memo || ""} onChange={e => {
+                const newReviews = [...weeklyReviews];
+                newReviews[weeklyReviews.length - 1 - i] = { ...r, memo: e.target.value };
+                save({ ...data, weeklyReviews: newReviews });
+              }} rows={3} placeholder="今週の気づき、来週のアクション..." style={{ ...inputS, width: "100%", fontSize: 12, resize: "vertical" }} />
+            </div>
+          </div>
+        ))}
+      </div>}
+    </div>
+  </div>;
+}
+
+// --- FILTER BAR ---
+function FilterBar({ statusFilter, setStatusFilter, typeFilter, setTypeFilter, sortKey, setSortKey, sortDir, setSortDir, columns, setColumns }) {
+  const [showCols, setShowCols] = useState(false);
+  const colRef = useRef(null);
+  useEffect(() => { function h(e) { if (colRef.current && !colRef.current.contains(e.target)) setShowCols(false); } document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, []);
+  const optionalCols = [{ id: "typeNum", label: "話数（タイプ別）" }, { id: "uniqueId", label: "ID（内部管理用）" }];
+  function cycleSort(key) { if (sortKey === key) { if (sortDir === "asc") setSortDir("desc"); else { setSortKey(null); setSortDir("asc"); } } else { setSortKey(key); setSortDir("asc"); } }
+  function toggleCol(id) { if (columns.includes(id)) setColumns(columns.filter(x => x !== id)); else setColumns([...columns, id]); }
+  return <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12, fontSize: 12 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <span style={{ color: C.sub }}>ステータス:</span>
+      <select value={statusFilter.length === 1 ? statusFilter[0] : ""} onChange={e => setStatusFilter(e.target.value ? [e.target.value] : [])} style={{ ...inputS, fontSize: 11, padding: "3px 8px", minWidth: 90 }}>
+        <option value="">すべて</option>
+        {STATUSES.map(st => <option key={st.id} value={st.id}>{st.label}</option>)}
+      </select>
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      {[{ id: "", label: "全て" }, ...POST_TYPES].map(pt => {
+        const active = typeFilter === pt.id;
+        return <button key={pt.id || "all"} onClick={() => setTypeFilter(pt.id)} style={{ background: active ? (pt.color || C.text) + "22" : "transparent", color: active ? (pt.color || C.text) : C.dim, border: "1px solid " + (active ? (pt.color || C.text) + "44" : C.border), borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}>{pt.icon || ""}{pt.label}</button>;
+      })}
+    </div>
+    <div ref={colRef} style={{ position: "relative" }}>
+      <button onClick={() => setShowCols(!showCols)} style={{ background: "transparent", color: C.sub, border: "1px solid " + C.border, borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}>👁 表示列</button>
+      {showCols && <div style={{ position: "absolute", top: "100%", right: 0, zIndex: 50, marginTop: 4, background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: 10, minWidth: 160, boxShadow: "0 8px 24px rgba(0,0,0,.4)" }}>
+        {optionalCols.map(col => { const on = columns.includes(col.id); return <label key={col.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", fontSize: 12, color: on ? C.text : C.dim }}><input type="checkbox" checked={on} onChange={() => toggleCol(col.id)} style={{ accentColor: C.accent }} />{col.label}</label>; })}
+      </div>}
+    </div>
+  </div>;
+}
+
+function AddEpisodeBar({ eps, defaultCadence, onAdd, onCancel }) {
+  const [title, setTitle] = useState("");
+  const [cadence, setCadence] = useState(defaultCadence || "daily");
+  const cDays = (CADENCES.find(c => c.id === cadence) || CADENCES[0]).days;
+  const lastDate = eps.length > 0 ? eps[eps.length - 1].postDate : null;
+  const [date, setDate] = useState(lastDate ? addDaysTo(lastDate, cDays) : toISO(new Date()));
+  useEffect(() => { const ld = eps.length > 0 ? eps[eps.length - 1].postDate : null; setDate(ld ? addDaysTo(ld, (CADENCES.find(c => c.id === cadence) || CADENCES[0]).days) : toISO(new Date())); }, [cadence, eps.length]);
+  function submit() { if (!title.trim()) return; onAdd(title.trim(), date, cadence); setTitle(""); }
+  return <div style={{ background: C.card, borderRadius: 12, padding: 14, marginBottom: 12, border: "1px solid " + C.accent + "33", display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+    <div style={{ flex: 1, minWidth: 150 }}><div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>タイトル</div><input value={title} onChange={e => setTitle(e.target.value)} placeholder="エピソードタイトル" onKeyDown={e => { if (e.key === "Enter") submit(); }} autoFocus style={{ ...inputS, width: "100%" }} /></div>
+    <div><div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>投稿ペース</div><select value={cadence} onChange={e => setCadence(e.target.value)} style={{ ...inputS }}>{CADENCES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></div>
+    <div><div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>X配信日</div><CalendarPicker value={date} onChange={v => setDate(v)} /></div>
+    <button onClick={submit} style={btnS(C.accent)}>追加</button>
+    <button onClick={onCancel} style={ghostBtn}>キャンセル</button>
+  </div>;
+}
+
+// --- MAIN COMPONENT ---
+function MangaDashboard() {
+  const [data, setData] = useState(INIT);
+  const [loaded, setLoaded] = useState(false);
+  const [openId, setOpenId] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [editName, setEditName] = useState(false);
+  const [tab, setTab] = useState("table");
+  const [statusFilter, setStatusFilter] = useState([]);
+  const [typeFilter, setTypeFilter] = useState("");
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
+  const [columns, setColumns] = useState([]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [deleteSelection, setDeleteSelection] = useState([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [gasUrl, setGasUrl] = useState("");
+  const [gasStatus, setGasStatus] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const settingsRef = useRef(null);
+  const importRef = useRef(null);
+
+  useEffect(() => { function h(e) { if (settingsRef.current && !settingsRef.current.contains(e.target)) setShowSettings(false); } document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, []);
+
+  // Load: local first, then auto-fetch from GAS
+  useEffect(() => { (async () => {
+    // Load GAS URL
+    let savedGasUrl = "";
+    try { const u = await window.storage.get(GAS_URL_KEY); if (u && u.value) { setGasUrl(u.value); savedGasUrl = u.value; } } catch(e) {}
+    // Load local data first (instant)
+    try {
+      let r = await window.storage.get(SK); if (!r || !r.value) { r = await window.storage.get("manga-dash-v11"); }
+      if (r && r.value) setData(JSON.parse(r.value));
+    } catch(e) {}
+    setLoaded(true);
+    // Auto-fetch from GAS (non-blocking, updates after local load)
+    if (savedGasUrl) {
+      try {
+        const remote = await gasGet(savedGasUrl);
+        if (remote && remote.episodes) {
+          setData(remote);
+          try { await window.storage.set(SK, JSON.stringify(remote)); } catch(e) {}
+        }
+      } catch(e) { /* GAS unavailable — local data is fine */ }
+    }
+  })(); }, []);
+
+  // Save: local + GAS (non-blocking)
+  const save = useCallback(async d => {
+    setData(d);
+    try { await window.storage.set(SK, JSON.stringify(d)); } catch(e) {}
+    // GAS sync (fire-and-forget)
+    try {
+      const u = await window.storage.get(GAS_URL_KEY);
+      if (u && u.value) gasPost(u.value, d).catch(() => {});
+    } catch(e) {}
+  }, []);
+
+  async function saveGasUrl(url) {
+    setGasUrl(url);
+    try { await window.storage.set(GAS_URL_KEY, url); } catch(e) {}
+  }
+
+  async function pullFromGas() {
+    if (!gasUrl) { setGasStatus("URLが未設定です"); return; }
+    setSyncing(true); setGasStatus("");
+    try {
+      const remote = await gasGet(gasUrl);
+      if (remote && remote.episodes) {
+        await save(remote);
+        setGasStatus("取得完了");
+      } else {
+        setGasStatus("リモートにデータなし");
+      }
+    } catch(e) { setGasStatus("取得失敗: " + e.message); }
+    setSyncing(false);
+  }
+
+  async function pushToGas() {
+    if (!gasUrl) { setGasStatus("URLが未設定です"); return; }
+    setSyncing(true); setGasStatus("");
+    try {
+      await gasPost(gasUrl, data);
+      setGasStatus("送信完了");
+    } catch(e) { setGasStatus("送信失敗: " + e.message); }
+    setSyncing(false);
+  }
+
+  function exportData() {
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "manga-dashboard-backup-" + toISO(new Date()) + ".json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleImport(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const imported = JSON.parse(ev.target.result);
+        if (imported && imported.episodes) {
+          save(imported);
+          setShowSettings(false);
+        }
+      } catch(err) { console.error("Import failed:", err); }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  function copyDataToClipboard() {
+    copyToClip(JSON.stringify(data));
+  }
+  const eps = data.episodes || [];
+
+  // Display number = order by postDate
+  const displayNumMap = {};
+  [...eps].sort((a, b) => {
+    if (!a.postDate && !b.postDate) return a.id - b.id;
+    if (!a.postDate) return 1;
+    if (!b.postDate) return -1;
+    return a.postDate.localeCompare(b.postDate) || a.id - b.id;
+  }).forEach((ep, i) => { displayNumMap[ep.id] = i + 1; });
+  function dn(ep) { return displayNumMap[ep.id] || "?"; }
+
+  // Type-specific number
+  const typeNumMap = {};
+  const typeCounters = {};
+  [...eps].sort((a, b) => {
+    if (!a.postDate && !b.postDate) return a.id - b.id;
+    if (!a.postDate) return 1;
+    if (!b.postDate) return -1;
+    return a.postDate.localeCompare(b.postDate) || a.id - b.id;
+  }).forEach(ep => {
+    const t = ep.postType || "manga";
+    typeCounters[t] = (typeCounters[t] || 0) + 1;
+    typeNumMap[ep.id] = typeCounters[t];
+  });
+  function typeNumLabel(ep) {
+    const t = ep.postType || "manga";
+    const n = typeNumMap[ep.id] || "?";
+    if (t === "manga") return "第" + n + "話";
+    if (t === "video") return "動画" + n;
+    if (t === "illust") return "イラスト" + n;
+    return n;
+  }
+
+  function addEp(title, date, cadence) {
+    const ep = { id: data.nextId, title, postDate: date || "", steps: {}, snsState: {}, captions: {}, story: "", snsMetrics: {}, analyticsNote: "", postType: "manga", postUrls: {} };
+    save({ ...data, episodes: [...eps, ep], nextId: data.nextId + 1, defaultCadence: cadence }); setAdding(false);
+  }
+  function upEp(id, u) { save({ ...data, episodes: eps.map(e => e.id === id ? { ...e, ...u } : e) }); }
+  function delEp(id) { save({ ...data, episodes: eps.filter(e => e.id !== id) }); if (openId === id) setOpenId(null); }
+  function bulkDelete() {
+    if (deleteSelection.length === 0) return;
+    save({ ...data, episodes: eps.filter(e => !deleteSelection.includes(e.id)) });
+    setDeleteSelection([]); setDeleteMode(false); setConfirmDelete(false);
+    if (deleteSelection.includes(openId)) setOpenId(null);
+  }
+  function toggleDeleteSelect(id) {
+    setDeleteSelection(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+
+  function saveMetrics(epId, snsId, timingKey, vals) {
+    const ep = eps.find(e => e.id === epId); if (!ep) return;
+    const newMetrics = { ...(ep.snsMetrics || {}) };
+    if (!newMetrics[snsId]) newMetrics[snsId] = {};
+    newMetrics[snsId][timingKey] = { ...(newMetrics[snsId][timingKey] || {}), ...vals };
+    upEp(epId, { snsMetrics: newMetrics });
+  }
+
+  function saveFollowers(vals) {
+    const entry = { date: toISO(new Date()), ...vals };
+    save({ ...data, weeklyFollowers: [...(data.weeklyFollowers || []), entry] });
+  }
+
+  function dismissTask(taskKey) {
+    save({ ...data, dismissedTasks: [...(data.dismissedTasks || []), taskKey] });
+  }
+
+  function cycleSort(key) { if (sortKey === key) { if (sortDir === "asc") setSortDir("desc"); else { setSortKey(null); setSortDir("asc"); } } else { setSortKey(key); setSortDir("asc"); } }
+
+  const today = toISO(new Date());
+  const tasks = generateTasks(eps, today, data.weeklyFollowers, data.dismissedTasks, displayNumMap);
+
+  const epsD = eps.map((ep, idx) => ({ ep, idx, status: deriveStatus(ep) }));
+  let filtered = epsD;
+  if (statusFilter.length > 0) filtered = filtered.filter(x => statusFilter.includes(x.status));
+  if (typeFilter) filtered = filtered.filter(x => (x.ep.postType || "manga") === typeFilter);
+  const sOrd = { none: 0, plot: 1, storyboard: 2, drawing: 3, done: 4, scheduled: 5, posted: 6 };
+  if (sortKey) {
+    filtered = [...filtered].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "number") cmp = dn(a.ep) - dn(b.ep);
+      else if (sortKey === "title") cmp = (a.ep.title || "").localeCompare(b.ep.title || "", "ja");
+      else if (sortKey === "uniqueId") cmp = a.ep.id - b.ep.id;
+      else if (sortKey === "typeNum") cmp = (typeNumMap[a.ep.id] || 0) - (typeNumMap[b.ep.id] || 0);
+      else if (sortKey === "status") cmp = (sOrd[a.status] || 0) - (sOrd[b.status] || 0);
+      else if (sortKey === "date") cmp = (a.ep.postDate || "9").localeCompare(b.ep.postDate || "9");
+      return sortDir === "desc" ? -cmp : cmp;
+    });
+  }
+
+  const counts = { total: eps.length, posted: epsD.filter(e => e.status === "posted").length, wip: epsD.filter(e => ["drawing", "storyboard", "plot"].includes(e.status)).length, ideas: epsD.filter(e => e.status === "none").length };
+
+  if (!loaded) return <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: C.sub, fontFamily: "'Zen Kaku Gothic New', sans-serif" }}>読み込み中...</div>;
+
+  const tabList = [{ id: "table", label: "📋 一覧" }, { id: "schedule", label: "📅 スケジュール" }, { id: "analytics", label: "📊 アナリティクス" }];
+
+  return <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Zen Kaku Gothic New', sans-serif" }}>
+    <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    <header style={{ padding: "20px 24px 16px", borderBottom: "1px solid " + C.border, background: "linear-gradient(180deg," + C.surface + " 0%," + C.bg + " 100%)", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+      <div style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg," + C.accent + "," + C.purple + ")", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, boxShadow: "0 4px 24px " + C.accentGlow, flexShrink: 0 }}>🖊️</div>
+      <div style={{ flex: 1, minWidth: 180 }}>
+        {editName ? <input autoFocus value={data.projectName} onChange={e => save({ ...data, projectName: e.target.value })} onBlur={() => setEditName(false)} onKeyDown={e => { if (e.key === "Enter") setEditName(false); }} style={{ ...inputS, fontSize: 20, fontWeight: 700, fontFamily: "'Dela Gothic One'" }} />
+          : <h1 onClick={() => setEditName(true)} style={{ fontFamily: "'Dela Gothic One'", fontSize: 20, margin: 0, cursor: "pointer", letterSpacing: -0.5 }}>{data.projectName}</h1>}
+        <div style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>漫画制作ダッシュボード v12</div>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        {[{ n: counts.total, l: "全話", c: C.text }, { n: counts.wip, l: "制作中", c: C.blue }, { n: counts.posted, l: "投稿済", c: C.green }, { n: counts.ideas, l: "未着手", c: C.dim }].map(s =>
+          <div key={s.l} style={{ background: C.surface, border: "1px solid " + C.border, borderRadius: 10, padding: "5px 14px", textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: s.c, fontFamily: "'Dela Gothic One'" }}>{s.n}</div>
+            <div style={{ fontSize: 10, color: C.sub }}>{s.l}</div>
+          </div>
+        )}
+        <div ref={settingsRef} style={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <button onClick={() => setShowSettings(!showSettings)} style={{ background: C.surface, border: "1px solid " + C.border, borderRadius: 10, width: 42, height: 42, cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: C.sub }}>⚙</button>
+          {showSettings && <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: "100%", right: 0, zIndex: 100, marginTop: 6, background: C.card, border: "1px solid " + C.border, borderRadius: 12, padding: 14, minWidth: 260, boxShadow: "0 12px 40px rgba(0,0,0,.5)" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 10 }}>⚙ 設定</div>
+            {/* Backup */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: C.sub, marginBottom: 6 }}>💾 バックアップ</div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                <button onClick={exportData} style={{ ...btnS(C.green), fontSize: 11, padding: "6px 12px", flex: 1 }}>↓ JSONエクスポート</button>
+                <button onClick={() => importRef.current?.click()} style={{ ...btnS(C.blue), fontSize: 11, padding: "6px 12px", flex: 1 }}>↑ JSONインポート</button>
+                <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
+              </div>
+              <button onClick={copyDataToClipboard} style={{ ...ghostBtn, fontSize: 10, padding: "4px 10px", width: "100%" }}>📋 JSONをクリップボードにコピー</button>
+              <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>定期的にエクスポートしてバックアップしてください</div>
+            </div>
+            {/* GAS Sync */}
+            <div style={{ borderTop: "1px solid " + C.border, paddingTop: 10, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: C.sub, marginBottom: 6 }}>☁ クラウド同期（GAS）</div>
+              <input value={gasUrl} onChange={e => saveGasUrl(e.target.value)} placeholder="GAS Web App URL" style={{ ...inputS, width: "100%", fontSize: 10, marginBottom: 6 }} />
+              <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+                <button onClick={pullFromGas} disabled={syncing || !gasUrl} style={{ ...btnS(C.blue), fontSize: 10, padding: "5px 10px", flex: 1, opacity: (syncing || !gasUrl) ? .4 : 1 }}>↓ 取得</button>
+                <button onClick={pushToGas} disabled={syncing || !gasUrl} style={{ ...btnS(C.green), fontSize: 10, padding: "5px 10px", flex: 1, opacity: (syncing || !gasUrl) ? .4 : 1 }}>↑ 送信</button>
+              </div>
+              {gasStatus && <div style={{ fontSize: 10, color: gasStatus.includes("失敗") || gasStatus.includes("未設定") ? C.red : C.green }}>{gasStatus}</div>}
+              <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>保存時に自動送信。スマホで見るには「取得」で同期</div>
+            </div>
+            <div style={{ borderTop: "1px solid " + C.border, paddingTop: 10 }}>
+              <button onClick={() => { setConfirmReset(true); setShowSettings(false); }} style={{ background: "transparent", color: C.red, border: "none", padding: "6px 0", cursor: "pointer", fontSize: 12, fontFamily: "inherit", width: "100%", textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.opacity = .7} onMouseLeave={e => e.currentTarget.style.opacity = 1}>🗑️ データリセット</button>
+            </div>
+          </div>}
+        </div>
+      </div>
+    </header>
+    <nav style={{ display: "flex", gap: 2, padding: "0 24px", background: C.surface, borderBottom: "1px solid " + C.border }}>
+      {tabList.map(t => <button key={t.id} onClick={() => setTab(t.id)} style={{ background: tab === t.id ? C.bg : "transparent", color: tab === t.id ? C.accent : C.sub, border: "none", padding: "12px 18px", cursor: "pointer", fontSize: 13, fontWeight: 500, fontFamily: "inherit", borderBottom: tab === t.id ? "2px solid " + C.accent : "2px solid transparent" }}>{t.label}</button>)}
+    </nav>
+    <main style={{ padding: "20px 24px", maxWidth: 1200, margin: "0 auto" }}>
+      <div style={{ marginBottom: 12, display: "flex", gap: 8, alignItems: "center" }}>
+        {adding ? <AddEpisodeBar eps={eps} defaultCadence={data.defaultCadence || "daily"} onAdd={addEp} onCancel={() => setAdding(false)} />
+          : <>
+            <button onClick={() => setAdding(true)} style={btnS(C.accent)}>＋ 新規エピソード</button>
+            {tab === "table" && !deleteMode && <button onClick={() => { setDeleteMode(true); setDeleteSelection([]); }} style={{ ...ghostBtn, fontSize: 12, padding: "8px 14px", color: C.dim }}>🗑 削除モード</button>}
+            {tab === "table" && deleteMode && <>
+              <button onClick={() => { if (deleteSelection.length > 0) setConfirmDelete(true); }} disabled={deleteSelection.length === 0} style={{ ...btnS(C.red), fontSize: 12, padding: "8px 14px", opacity: deleteSelection.length === 0 ? .4 : 1 }}>🗑 {deleteSelection.length}件を削除</button>
+              <button onClick={() => { setDeleteMode(false); setDeleteSelection([]); }} style={{ ...ghostBtn, fontSize: 12, padding: "8px 14px" }}>キャンセル</button>
+            </>}
+          </>}
+      </div>
+      {openId && (() => { const ep = eps.find(e => e.id === openId); if (!ep) return null; return <DetailPanel ep={ep} update={u => upEp(openId, u)} onClose={() => setOpenId(null)} onDelete={() => delEp(openId)} allEps={eps} displayNum={dn(ep)} />; })()}
+
+      {tab === "table" && <div>
+        <FilterBar statusFilter={statusFilter} setStatusFilter={setStatusFilter} typeFilter={typeFilter} setTypeFilter={setTypeFilter} sortKey={sortKey} setSortKey={setSortKey} sortDir={sortDir} setSortDir={setSortDir} columns={columns} setColumns={setColumns} />
+        <div style={{ borderRadius: 14, border: "1px solid " + C.border, overflow: "hidden", background: C.surface, overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: C.card }}>
+              {deleteMode && <th style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: C.sub, borderBottom: "1px solid " + C.border, width: 36 }}>
+                <input type="checkbox" checked={deleteSelection.length === filtered.length && filtered.length > 0} onChange={e => { if (e.target.checked) setDeleteSelection(filtered.map(x => x.ep.id)); else setDeleteSelection([]); }} style={{ accentColor: C.red }} />
+              </th>}
+              {[{ label: "#", key: "number" }, { label: "タイトル", key: "title" }].map((h, i) => {
+                const active = sortKey === h.key;
+                return <th key={i} onClick={() => cycleSort(h.key)} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: active ? C.accent : C.sub, borderBottom: "1px solid " + C.border, cursor: "pointer", userSelect: "none" }}>{h.label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>;
+              })}
+              {columns.includes("uniqueId") && (() => { const active = sortKey === "uniqueId"; return <th onClick={() => cycleSort("uniqueId")} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: active ? C.accent : C.dim, borderBottom: "1px solid " + C.border, cursor: "pointer", userSelect: "none" }}>ID{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>; })()}
+              {columns.includes("typeNum") && (() => { const active = sortKey === "typeNum"; return <th onClick={() => cycleSort("typeNum")} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: active ? C.accent : C.sub, borderBottom: "1px solid " + C.border, cursor: "pointer", userSelect: "none" }}>話数{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>; })()}
+              {[{ label: "ステータス", key: "status" }, { label: "X配信日", key: "date" }].map(h => {
+                const active = sortKey === h.key;
+                return <th key={h.label} onClick={() => cycleSort(h.key)} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: active ? C.accent : C.sub, borderBottom: "1px solid " + C.border, cursor: "pointer", userSelect: "none" }}>{h.label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>;
+              })}
+              {STEPS.map(s => <th key={s.id} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: C.sub, borderBottom: "1px solid " + C.border }}>{s.label}</th>)}
+              {SNS_LIST.map(sns => <th key={sns.id} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: sns.color, borderBottom: "1px solid " + C.border }}><SnsIcon id={sns.id} size={16} /></th>)}
+            </tr></thead>
+            <tbody>
+              {filtered.length === 0 ? <tr><td colSpan={99} style={{ padding: 48, textAlign: "center", color: C.dim }}>{eps.length === 0 ? "「＋ 新規エピソード」から追加しましょう！" : "フィルター条件に一致なし"}</td></tr>
+              : filtered.map(({ ep, idx, status }) => {
+                const isOpen = openId === ep.id;
+                const isSelected = deleteSelection.includes(ep.id);
+                return <tr key={ep.id} onClick={() => { if (deleteMode) toggleDeleteSelect(ep.id); else setOpenId(isOpen ? null : ep.id); }}
+                  style={{ cursor: "pointer", background: isSelected ? "#ff444415" : isOpen ? C.accent + "0A" : "transparent", borderBottom: "1px solid " + C.border + "33" }}
+                  onMouseEnter={e => { if (!isOpen && !isSelected) e.currentTarget.style.background = C.card; }}
+                  onMouseLeave={e => { if (!isOpen && !isSelected) e.currentTarget.style.background = isSelected ? "#ff444415" : "transparent"; }}>
+                  {deleteMode && <td style={cellS} onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" checked={isSelected} onChange={() => toggleDeleteSelect(ep.id)} style={{ accentColor: C.red }} />
+                  </td>}
+                  <td style={cellS}>{dn(ep)}</td>
+                  <td style={{ ...cellS, fontWeight: 600 }}>
+                    <span style={{ fontSize: 12, marginRight: 4 }}>{(ptMap[ep.postType] || ptMap.manga).icon}</span>
+                    {ep.title || "無題"}
+                  </td>
+                  {columns.includes("uniqueId") && <td style={{ ...cellS, fontSize: 10, color: C.dim, fontFamily: "monospace" }}>{ep.id}</td>}
+                  {columns.includes("typeNum") && <td style={{ ...cellS, fontSize: 11, color: (ptMap[ep.postType] || ptMap.manga).color }}>{typeNumLabel(ep)}</td>}
+                  <td style={cellS}><StatusPill status={status} /></td>
+                  <td style={{ ...cellS, fontSize: 12, color: C.sub }}>{fmtDate(ep.postDate)}</td>
+                  {STEPS.map(step => <td key={step.id} style={cellS} onClick={e => e.stopPropagation()}>
+                    <Chk on={!!((ep.steps || {})[step.id])} toggle={() => upEp(ep.id, { steps: { ...(ep.steps || {}), [step.id]: !((ep.steps || {})[step.id]) } })} />
+                  </td>)}
+                  {SNS_LIST.map(sns => <td key={sns.id} style={cellS} onClick={e => e.stopPropagation()}>
+                    <SnsStateBtn value={(ep.snsState || {})[sns.id] || "none"} onChange={v => upEp(ep.id, { snsState: { ...(ep.snsState || {}), [sns.id]: v } })} />
+                  </td>)}
+                </tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>}
+
+      {tab === "schedule" && <div>
+        {/* Today's Tasks */}
+        {tasks.length > 0 && <div style={{ marginBottom: 20, padding: 16, background: C.card, borderRadius: 14, border: "1px solid " + C.accent + "33" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 10 }}>📋 今日のタスク（{fmtDate(today)}）</div>
+          {tasks.map((task, i) => {
+            if (task.type === "followers") return <FollowerInputRow key="fol" onSave={saveFollowers} />;
+            return <TaskInputRow key={i} task={task} onSave={saveMetrics} onDismiss={() => dismissTask(task.key)} />;
+          })}
+        </div>}
+        {tasks.length === 0 && <div style={{ marginBottom: 16, padding: 12, background: C.surface, borderRadius: 10, border: "1px solid " + C.border, fontSize: 12, color: C.dim, textAlign: "center" }}>✓ 今日のデータ入力タスクはありません</div>}
+        <ScheduleTimeline eps={eps} onOpenId={setOpenId} openId={openId} dn={dn} />
+      </div>}
+
+      {tab === "analytics" && <AnalyticsTab eps={eps} data={data} save={save} dn={dn} />}
+    </main>
+    <footer style={{ textAlign: "center", padding: "20px 0 40px" }}>
+      <div style={{ fontSize: 10, color: C.dim }}>v12</div>
+    </footer>
+    {/* Confirm Reset Modal */}
+    {confirmReset && <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.7)", backdropFilter: "blur(4px)" }} onClick={() => setConfirmReset(false)}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.card, borderRadius: 16, padding: 24, maxWidth: 400, width: "90%", border: "1px solid " + C.red + "44", boxShadow: "0 24px 80px rgba(0,0,0,.6)" }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.red, marginBottom: 12 }}>⚠ データリセット</div>
+        <div style={{ fontSize: 13, color: C.text, marginBottom: 8 }}>すべてのエピソード・数値データ・週次レビューが完全に削除されます。</div>
+        <div style={{ fontSize: 12, color: C.red, marginBottom: 20 }}>この操作は取り消せません。</div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={() => setConfirmReset(false)} style={ghostBtn}>キャンセル</button>
+          <button onClick={async () => { try { await window.storage.delete(SK); } catch(e){} setData(INIT); setConfirmReset(false); }} style={{ ...btnS(C.red), padding: "8px 24px" }}>リセットする</button>
+        </div>
+      </div>
+    </div>}
+    {/* Confirm Delete Modal */}
+    {confirmDelete && <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.7)", backdropFilter: "blur(4px)" }} onClick={() => setConfirmDelete(false)}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.card, borderRadius: 16, padding: 24, maxWidth: 420, width: "90%", border: "1px solid " + C.red + "44", boxShadow: "0 24px 80px rgba(0,0,0,.6)" }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.red, marginBottom: 12 }}>🗑 エピソード削除</div>
+        <div style={{ fontSize: 13, color: C.text, marginBottom: 8 }}>以下の {deleteSelection.length} 件を削除しますか？</div>
+        <div style={{ background: C.bg, borderRadius: 8, padding: 10, marginBottom: 16, maxHeight: 200, overflow: "auto", border: "1px solid " + C.border }}>
+          {deleteSelection.map(id => { const ep = eps.find(e => e.id === id); return ep ? <div key={id} style={{ fontSize: 12, color: C.text, padding: "3px 0" }}>#{dn(ep)} {ep.title || "無題"}</div> : null; })}
+        </div>
+        <div style={{ fontSize: 12, color: C.red, marginBottom: 16 }}>この操作は取り消せません。</div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={() => setConfirmDelete(false)} style={ghostBtn}>キャンセル</button>
+          <button onClick={bulkDelete} style={{ ...btnS(C.red), padding: "8px 24px" }}>削除する</button>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<MangaDashboard />);
+</script>
+</body>
+</html>
