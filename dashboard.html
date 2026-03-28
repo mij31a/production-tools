@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow">
 <title>ぷわんな毎日 ダッシュボード</title>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Dela+Gothic+One&display=swap" rel="stylesheet" />
 <style>
@@ -124,7 +125,7 @@ const SNS_METRICS = {
 
 
 
-const INIT = { episodes: [], nextId: 1, projectName: "ぷわんな毎日", defaultCadence: "daily", weeklyFollowers: [], weeklyReviews: [], dismissedTasks: [] };
+const INIT = { episodes: [], nextId: 1, projectName: "配信管理", defaultCadence: "daily", weeklyFollowers: [], weeklyReviews: [], dismissedTasks: [] };
 
 const GAS_URL_KEY = "manga-dash-gas-url";
 
@@ -1021,7 +1022,7 @@ function MangaDashboard() {
       <div style={{ flex: 1, minWidth: 180 }}>
         {editName ? <input autoFocus value={data.projectName} onChange={e => save({ ...data, projectName: e.target.value })} onBlur={() => setEditName(false)} onKeyDown={e => { if (e.key === "Enter") setEditName(false); }} style={{ ...inputS, fontSize: 20, fontWeight: 700, fontFamily: "'Dela Gothic One'" }} />
           : <h1 onClick={() => setEditName(true)} style={{ fontFamily: "'Dela Gothic One'", fontSize: 20, margin: 0, cursor: "pointer", letterSpacing: -0.5 }}>{data.projectName}</h1>}
-        <div style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>漫画制作ダッシュボード v12</div>
+        <div style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>配信管理 v12</div>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         {[{ n: counts.total, l: "全話", c: C.text }, { n: counts.wip, l: "制作中", c: C.blue }, { n: counts.posted, l: "投稿済", c: C.green }, { n: counts.ideas, l: "未着手", c: C.dim }].map(s =>

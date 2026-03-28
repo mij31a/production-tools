@@ -4,17 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#FAF6F1">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111116">
 <meta name="robots" content="noindex, nofollow">
-<title>制作ファクトリー</title>
+<title>制作管理</title>
 <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoi5Yi25L2c44OV44Kh44Kv44OI44Oq44O8Iiwic2hvcnRfbmFtZSI6IuODleOCoeOCr+ODiOODquODvCIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjRkFGNkYxIiwidGhlbWVfY29sb3IiOiIjRjJBN0IwIn0=">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #FAF6F1; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
+  body { background: #111116; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
   #root { min-height: 100vh; }
 </style>
 </head>
@@ -267,7 +267,8 @@ function PuwanFactory() {
   const [pasteText, setPasteText] = useState("");
   const [showGoalEdit, setShowGoalEdit] = useState(false);
   const [goalDateInput, setGoalDateInput] = useState("");
-  const [goalCountInput, setGoalCountInput] = useState(5);
+  const [goalStartEpInput, setGoalStartEpInput] = useState(1);
+  const [goalEndEpInput, setGoalEndEpInput] = useState(5);
   const [showAchievements, setShowAchievements] = useState(false);
   const [newAchievement, setNewAchievement] = useState(null); // toast
   const [tab, setTab] = useState("work"); // "work" | "stats"
@@ -539,9 +540,9 @@ function PuwanFactory() {
       return { ...ep, panels: ep.panels.filter(p => p.id !== panelId), done: nd, seconds: ns };
     }) });
   }
-  function saveGoal(targetDate, targetCount) {
-    const startDate = data.goal?.startDate || new Date().toISOString().slice(0, 10);
-    save({ ...data, goal: { targetDate, targetCount, startDate } });
+  function saveGoal(targetDate, startEp, endEp) {
+    const startDate = new Date().toISOString().slice(0, 10);
+    save({ ...data, goal: { targetDate, startEp, endEp, startDate } });
     setShowGoalEdit(false);
   }
   function clearGoal() {
@@ -551,40 +552,36 @@ function PuwanFactory() {
 
   // ─── Pace calculation ───
   function calcPace(episodes, goal) {
-    if (!goal || !goal.targetDate || !goal.targetCount) return null;
+    if (!goal || !goal.targetDate || !goal.startEp || !goal.endEp) return null;
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const target = new Date(goal.targetDate);
-    const targetCount = goal.targetCount;
 
-    // Use goal creation or earliest incomplete ep as start reference
     const startDate = goal.startDate ? new Date(goal.startDate) : today;
     const spanDays = Math.max(1, Math.round((target - startDate) / 86400000));
     const totalDays = Math.max(0, Math.round((target - today) / 86400000));
 
-    const doneCount = episodes.filter(e => e.allDone).length;
-    const remaining = Math.max(0, targetCount - doneCount);
+    const rangeEps = episodes.slice(goal.startEp - 1, goal.endEp);
+    const totalCount = rangeEps.length;
+    const doneCount = rangeEps.filter(e => e.allDone).length;
+    const remaining = Math.max(0, totalCount - doneCount);
 
-    if (remaining <= 0) return { status: "done", msg: "目標達成済み…！すごい！", color: "#4CAF50", milestones: [], doneCount, targetCount };
+    if (remaining <= 0) return { status: "done", msg: "目標達成済み…！すごい！", color: "#5DE8A0", milestones: [], doneCount, totalCount };
 
     // Milestones: evenly spaced across the full span
-    const daysPerEp = spanDays / targetCount;
+    const daysPerEp = spanDays / totalCount;
     const milestones = [];
-    for (let i = 0; i < targetCount; i++) {
+    for (let i = 0; i < totalCount; i++) {
       const msDate = new Date(startDate.getTime() + daysPerEp * (i + 1) * 86400000);
-      const epIndex = i; // 0-indexed, covers done + incomplete
-      const incomplete = episodes.filter(e => !e.allDone);
-      const allEpsOrdered = [...episodes.filter(e => e.allDone), ...incomplete];
-      const ep = allEpsOrdered[i];
-      const isDone = i < doneCount;
+      const ep = rangeEps[i];
       milestones.push({
         epId: ep?.id || null,
-        epTitle: ep?.title || "EP" + (i + 1),
-        num: i + 1,
+        epTitle: ep?.title || "第" + (goal.startEp + i) + "話",
+        num: goal.startEp + i,
         date: msDate,
         dateStr: (msDate.getMonth() + 1) + "/" + msDate.getDate(),
-        pct: Math.min(100, ((i + 1) / targetCount) * 100),
-        isDone,
+        pct: Math.min(100, ((i + 1) / totalCount) * 100),
+        isDone: ep?.allDone || false,
       });
     }
 
@@ -601,10 +598,10 @@ function PuwanFactory() {
     } else if (daysPerEpRemaining < 4) {
       status = "steady"; msg = "いいペースだよ…！このまま続けよう"; color = "#5EB5A0";
     } else {
-      status = "relaxed"; msg = "余裕あるね！ていねいにいこう"; color = "#4CAF50";
+      status = "relaxed"; msg = "余裕あるね！ていねいにいこう"; color = "#5DE8A0";
     }
 
-    return { status, msg, color, milestones, doneCount, targetCount, remaining, totalDays, todayPct, daysPerEp: Math.round(daysPerEpRemaining * 10) / 10 };
+    return { status, msg, color, milestones, doneCount, totalCount, remaining, totalDays, todayPct, daysPerEp: Math.round(daysPerEpRemaining * 10) / 10 };
   }
 
   function resetAll() {
@@ -612,7 +609,7 @@ function PuwanFactory() {
     setData(d); setTodayStats(s); setActiveEp(null); setWorking(null); setShowGoalEdit(false); setShowAchievements(false); save(d, s);
   }
 
-  if (loading || !data) return <div style={S.loading}><span style={{ color: "#BDB5AC", fontSize: 14 }}>荷物を読み込み中…</span></div>;
+  if (loading || !data) return <div style={S.loading}><span style={{ color: "#4A4A60", fontSize: 14 }}>荷物を読み込み中…</span></div>;
 
   const episodes = data.episodes || [];
   const currentEp = episodes.find(e => e.id === activeEp);
@@ -641,28 +638,28 @@ function PuwanFactory() {
       <header style={S.header}>
         <div style={S.hLeft}>
           <div style={S.logo}>📦</div>
-          <div><div style={S.hTitle}>制作ファクトリー</div><div style={S.hSub}>工程×コマで荷物を処理</div></div>
+          <div><div style={S.hTitle}>制作管理</div><div style={S.hSub}>工程×コマで荷物を処理</div></div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {combo >= 2 && <div style={S.comboBadge}>🔥 {combo} COMBO</div>}
-          <button onClick={() => setShowSettings(!showSettings)} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #ECE5DD", background: showSettings ? "#F2A7B0" : "#FFF", color: showSettings ? "#FFF" : "#9E9590", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>⚙</button>
+          <button onClick={() => setShowSettings(!showSettings)} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #2A2A38", background: showSettings ? "#F2A7B0" : "#18181F", color: showSettings ? "#FFF" : "#7E7E96", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>⚙</button>
         </div>
       </header>
 
       {/* Settings Panel */}
       {showSettings && (
-        <div style={{ margin: "0 16px 8px", background: "#FFF", borderRadius: 14, padding: "14px", boxShadow: "0 2px 8px rgba(0,0,0,.06)", border: "1px solid #ECE5DD" }}>
+        <div style={{ margin: "0 16px 8px", background: "#1E1E28", borderRadius: 14, padding: "14px", boxShadow: "0 2px 8px rgba(0,0,0,.06)", border: "1px solid #2A2A38" }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>⚙ 設定</div>
 
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#9E9590", marginBottom: 4 }}>☁️ GAS同期</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#7E7E96", marginBottom: 4 }}>☁️ GAS同期</div>
             <input style={{ ...S.input, fontSize: 11, marginBottom: 6 }} placeholder="GAS WebアプリURL" value={gasUrl} onChange={e => saveGasUrl(e.target.value)} />
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               <button style={S.ghost} onClick={pullFromGas} disabled={syncing}>{syncing ? "..." : "↓ 取得"}</button>
               <button style={S.ghost} onClick={pushToGas} disabled={syncing}>{syncing ? "..." : "↑ 送信"}</button>
               <button style={S.ghost} onClick={() => { const j = JSON.stringify({ ...data, todayStats }, null, 2); const b = new Blob([j], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "factory-backup.json"; a.click(); }}>💾 書出し</button>
             </div>
-            {gasStatus && <div style={{ fontSize: 10, color: gasStatus.includes("完了") ? "#4CAF50" : "#E88D67", marginTop: 4 }}>{gasStatus}</div>}
+            {gasStatus && <div style={{ fontSize: 10, color: gasStatus.includes("完了") ? "#5DE8A0" : "#E88D67", marginTop: 4 }}>{gasStatus}</div>}
           </div>
 
           <button style={{ ...S.ghost, color: "#D4626A", borderColor: "#F5D5D5", fontSize: 10, width: "100%" }}
@@ -673,7 +670,7 @@ function PuwanFactory() {
       {/* Puwan */}
       <div style={S.puwanRow}>
         <div style={S.puwanAv}><span style={{ fontSize: 11, letterSpacing: 1 }}>{working ? "◕ᴗ◕" : celebration ? "◕ꈍ◕" : "◕‿◕"}</span></div>
-        <div style={S.bubble}><span style={{ fontSize: 12.5, lineHeight: 1.5, color: "#5D534A" }}>{puwanMsg}</span></div>
+        <div style={S.bubble}><span style={{ fontSize: 12.5, lineHeight: 1.5, color: "#C4C4D4" }}>{puwanMsg}</span></div>
       </div>
 
       {/* Stats - 4 items */}
@@ -682,20 +679,20 @@ function PuwanFactory() {
         <div style={S.sd} />
         <div style={S.si}><span style={S.sv}>{fmtTime(todayStats.seconds)}</span><span style={S.sk}>今日の時間</span></div>
         <div style={S.sd} />
-        <div style={S.si}><span style={{ ...S.sv, color: calcStreak(data.activeDays || []) >= 3 ? "#E8919D" : "#3D3530" }}>{calcStreak(data.activeDays || []) || "—"}</span><span style={S.sk}>連続</span></div>
+        <div style={S.si}><span style={{ ...S.sv, color: calcStreak(data.activeDays || []) >= 3 ? "#E8919D" : "#E4E4EE" }}>{calcStreak(data.activeDays || []) || "—"}</span><span style={S.sk}>連続</span></div>
         <div style={S.sd} />
         <div style={S.si}><span style={S.sv}>{fmtTime(globalSec)}</span><span style={S.sk}>累計</span></div>
       </div>
 
       {/* Tab switcher */}
       {!working && (
-        <div style={{ display: "flex", margin: "0 16px 8px", borderRadius: 10, background: "#FFF", overflow: "hidden", border: "1px solid #ECE5DD" }}>
+        <div style={{ display: "flex", margin: "0 16px 8px", borderRadius: 10, background: "#1E1E28", overflow: "hidden", border: "1px solid #2A2A38" }}>
           {[{ id: "work", label: "📦 作業" }, { id: "stats", label: "📊 統計" }].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               flex: 1, padding: "8px 0", border: "none", cursor: "pointer",
               fontFamily: "'M PLUS Rounded 1c',sans-serif", fontSize: 12, fontWeight: 700,
               background: tab === t.id ? "#F2A7B0" : "transparent",
-              color: tab === t.id ? "#FFF" : "#9E9590",
+              color: tab === t.id ? "#FFF" : "#7E7E96",
               transition: "all .2s",
             }}>{t.label}</button>
           ))}
@@ -707,10 +704,10 @@ function PuwanFactory() {
         <div style={S.workCard}>
           <div style={S.conveyor} />
           <div style={S.workInner}>
-            <div style={{ fontSize: 11, color: "#9E9590", fontWeight: 600, marginBottom: 4 }}>{currentEp?.title}</div>
+            <div style={{ fontSize: 11, color: "#7E7E96", fontWeight: 600, marginBottom: 4 }}>{currentEp?.title}</div>
             <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 16 }}>
               {working.phase.icon} {working.phase.label}
-              {working.panelLabel && <span style={{ fontWeight: 500, color: "#9E9590" }}> → {working.panelLabel}</span>}
+              {working.panelLabel && <span style={{ fontWeight: 500, color: "#7E7E96" }}> → {working.panelLabel}</span>}
             </div>
             <div style={{ marginBottom: 20 }}>
               <span style={S.timerD}>{fmtTimer(elapsed)}</span>
@@ -729,7 +726,7 @@ function PuwanFactory() {
         <div style={{ padding: "4px 16px 32px" }}>
           {/* Overall */}
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#9E9590", marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#7E7E96", marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
               全体進捗 <span style={{ fontFamily: "'Share Tech Mono',monospace", color: "#F2A7B0" }}>{globalDone}/{globalTotal}</span>
             </div>
             <div style={S.barBg}><div style={{ ...S.barFill, width: `${globalTotal > 0 ? globalDone / globalTotal * 100 : 0}%` }} /></div>
@@ -741,9 +738,9 @@ function PuwanFactory() {
             const pace = calcPace(episodes, goal);
 
             return (
-              <div style={{ background: "#FFF", borderRadius: 14, padding: "12px 14px", marginBottom: 10, boxShadow: "0 1px 4px rgba(0,0,0,.03)" }}>
+              <div style={{ background: "#1E1E28", borderRadius: 14, padding: "12px 14px", marginBottom: 10, boxShadow: "0 1px 4px rgba(0,0,0,.03)" }}>
                 {!goal && !showGoalEdit && (
-                  <button style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1.5px dashed #E8E0D8", background: "transparent", color: "#9E9590", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" }}
+                  <button style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1.5px dashed #2A2A38", background: "transparent", color: "#7E7E96", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" }}
                     onClick={() => setShowGoalEdit(true)}>
                     🎯 目標を設定する
                   </button>
@@ -752,21 +749,54 @@ function PuwanFactory() {
                 {showGoalEdit && (
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>🎯 目標設定</div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 8, flexWrap: "wrap" }}>
-                      <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11, color: "#9E9590", fontWeight: 600 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 10, flexWrap: "wrap" }}>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11, color: "#7E7E96", fontWeight: 600 }}>
                         期日
                         <input type="date" style={{ ...S.input, width: 150, marginBottom: 0, padding: "8px 10px", fontSize: 13 }}
                           value={goalDateInput} onChange={e => setGoalDateInput(e.target.value)} />
                       </label>
-                      <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11, color: "#9E9590", fontWeight: 600 }}>
-                        完成する話数
-                        <select style={S.sel} value={goalCountInput} onChange={e => setGoalCountInput(+e.target.value)}>
-                          {Array.from({ length: 20 }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}話</option>)}
-                        </select>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11, color: "#7E7E96", fontWeight: 600 }}>
+                        第（開始）
+                        <input type="number" min="1" style={{ ...S.input, width: 70, marginBottom: 0, padding: "8px 10px", fontSize: 14, fontWeight: 700 }}
+                          value={goalStartEpInput} onChange={e => { const v = Math.max(1, +e.target.value || 1); setGoalStartEpInput(v); if (goalEndEpInput < v) setGoalEndEpInput(v); }} />
+                      </label>
+                      <span style={{ color: "#4A4A60", fontSize: 14, paddingBottom: 8 }}>〜</span>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11, color: "#7E7E96", fontWeight: 600 }}>
+                        第（終了）
+                        <input type="number" min={goalStartEpInput} style={{ ...S.input, width: 70, marginBottom: 0, padding: "8px 10px", fontSize: 14, fontWeight: 700 }}
+                          value={goalEndEpInput} onChange={e => setGoalEndEpInput(Math.max(goalStartEpInput, +e.target.value || goalStartEpInput))} />
                       </label>
                     </div>
+                    {goalEndEpInput >= goalStartEpInput && (
+                      <div style={{ marginBottom: 10, padding: "8px 10px", background: "#18181F", borderRadius: 8 }}>
+                        <div style={{ fontSize: 10, color: "#4A4A60", marginBottom: 6 }}>完了状況（第{goalStartEpInput}〜第{goalEndEpInput}話）</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginBottom: 5 }}>
+                          {Array.from({ length: goalEndEpInput - goalStartEpInput + 1 }, (_, i) => {
+                            const epNum = goalStartEpInput + i;
+                            const ep = episodes[epNum - 1];
+                            const isDone = ep?.allDone || false;
+                            const exists = !!ep;
+                            return (
+                              <div key={i} style={{
+                                minWidth: 24, height: 24, borderRadius: 5, padding: "0 4px",
+                                background: isDone ? "#5DE8A015" : "transparent",
+                                border: "1px solid " + (isDone ? "#5DE8A044" : exists ? "#2A2A38" : "#1E1E28"),
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontSize: 9, fontWeight: 700,
+                                color: isDone ? "#5DE8A0" : exists ? "#4A4A60" : "#2A2A38",
+                              }}>{epNum}</div>
+                            );
+                          })}
+                        </div>
+                        <div style={{ fontSize: 10, color: "#4A4A60" }}>
+                          {episodes.slice(goalStartEpInput - 1, goalEndEpInput).filter(e => e.allDone).length}
+                          <span style={{ color: "#5DE8A0", fontWeight: 700 }}>話完了</span>
+                          　/ {goalEndEpInput - goalStartEpInput + 1}話
+                        </div>
+                      </div>
+                    )}
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button style={S.btnPri} onClick={() => { if (goalDateInput) saveGoal(goalDateInput, goalCountInput); }}>設定する</button>
+                      <button style={S.btnPri} onClick={() => { if (goalDateInput) saveGoal(goalDateInput, goalStartEpInput, goalEndEpInput); }}>設定する</button>
                       <button style={S.ghost} onClick={() => setShowGoalEdit(false)}>キャンセル</button>
                     </div>
                   </div>
@@ -775,23 +805,23 @@ function PuwanFactory() {
                 {goal && !showGoalEdit && pace && (
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700 }}>🎯 {(new Date(goal.targetDate).getMonth() + 1) + "/" + new Date(goal.targetDate).getDate()}までに{goal.targetCount}話完成</span>
-                      <button style={{ background: "none", border: "none", color: "#BDB5AC", fontSize: 11, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" }}
-                        onClick={() => { setGoalDateInput(goal.targetDate); setGoalCountInput(goal.targetCount); setShowGoalEdit(true); }}>編集</button>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>🎯 第{goal.startEp}話〜第{goal.endEp}話 / {(new Date(goal.targetDate).getMonth() + 1) + "/" + new Date(goal.targetDate).getDate()}まで</span>
+                      <button style={{ background: "none", border: "none", color: "#4A4A60", fontSize: 11, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" }}
+                        onClick={() => { setGoalDateInput(goal.targetDate); setGoalStartEpInput(goal.startEp); setGoalEndEpInput(goal.endEp); setShowGoalEdit(true); }}>編集</button>
                     </div>
 
                     {pace.status === "done" ? (
                       <div style={{ padding: "8px 12px", borderRadius: 10, background: "#E8F5E9", textAlign: "center" }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#4CAF50" }}>🎉 {pace.msg}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#5DE8A0" }}>🎉 {pace.msg}</span>
                       </div>
                     ) : (
                       <div>
                         {/* ─── Visual Timeline Bar ─── */}
                         <div style={{ position: "relative", margin: "8px 0 30px", padding: "0 4px" }}>
                           {/* Track */}
-                          <div style={{ height: 8, background: "#F0EAE3", borderRadius: 4, position: "relative", overflow: "visible" }}>
+                          <div style={{ height: 8, background: "#2A2A38", borderRadius: 4, position: "relative", overflow: "visible" }}>
                             {/* Fill = done episodes */}
-                            <div style={{ height: "100%", borderRadius: 4, background: "linear-gradient(90deg, #B8E6C8, " + pace.color + ")", transition: "width .5s", width: `${goal.targetCount > 0 ? Math.min(100, pace.doneCount / goal.targetCount * 100) : 0}%`, position: "absolute", top: 0, left: 0, zIndex: 2 }} />
+                            <div style={{ height: "100%", borderRadius: 4, background: "linear-gradient(90deg, #5DE8A060, " + pace.color + ")", transition: "width .5s", width: `${pace.totalCount > 0 ? Math.min(100, pace.doneCount / pace.totalCount * 100) : 0}%`, position: "absolute", top: 0, left: 0, zIndex: 2 }} />
                           </div>
 
                           {/* Milestone markers */}
@@ -802,11 +832,11 @@ function PuwanFactory() {
                                 {/* Dot */}
                                 <div style={{
                                   width: 14, height: 14, borderRadius: "50%",
-                                  background: m.isDone ? "#4CAF50" : "#FFF",
-                                  border: m.isDone ? "2px solid #4CAF50" : "2px solid #D4CAC0",
+                                  background: m.isDone ? "#5DE8A0" : "#18181F",
+                                  border: m.isDone ? "2px solid #5DE8A0" : "2px solid #2A2A38",
                                   marginTop: -3,
                                   display: "flex", alignItems: "center", justifyContent: "center",
-                                  fontSize: 7, fontWeight: 800, color: m.isDone ? "#FFF" : "#BDB5AC",
+                                  fontSize: 7, fontWeight: 800, color: m.isDone ? "#FFF" : "#4A4A60",
                                 }}>
                                   {m.isDone ? "✓" : m.num}
                                 </div>
@@ -816,8 +846,8 @@ function PuwanFactory() {
                                   textAlign: "center",
                                   whiteSpace: "nowrap",
                                 }}>
-                                  <div style={{ fontSize: 9, fontWeight: 700, color: m.isDone ? "#4CAF50" : "#9E9590" }}>{m.dateStr}</div>
-                                  <div style={{ fontSize: 8, color: "#BDB5AC", maxWidth: 50, overflow: "hidden", textOverflow: "ellipsis" }}>{m.num}話</div>
+                                  <div style={{ fontSize: 9, fontWeight: 700, color: m.isDone ? "#5DE8A0" : "#7E7E96" }}>{m.dateStr}</div>
+                                  <div style={{ fontSize: 8, color: "#4A4A60", maxWidth: 50, overflow: "hidden", textOverflow: "ellipsis" }}>{m.num}話</div>
                                 </div>
                               </div>
                             );
@@ -841,7 +871,7 @@ function PuwanFactory() {
                             position: "absolute", left: `${pace.todayPct}%`, top: -18,
                             transform: "translateX(-50%)",
                             fontSize: 9, fontWeight: 700, color: "#F2A7B0",
-                            background: "#FFF5F5", padding: "1px 5px", borderRadius: 4,
+                            background: "#1E1820", padding: "1px 5px", borderRadius: 4,
                             border: "1px solid #F2A7B020", zIndex: 6,
                           }}>今日</div>
                         </div>
@@ -852,7 +882,7 @@ function PuwanFactory() {
                             <span style={{ fontSize: 14 }}>{pace.status === "overdue" ? "🫧" : pace.status === "tight" ? "📦💨" : pace.status === "steady" ? "📦✨" : "📦🌿"}</span>
                             <span style={{ fontSize: 12, color: pace.color, fontWeight: 600 }}>{pace.msg}</span>
                           </div>
-                          <div style={{ fontSize: 10, color: "#9E9590", marginTop: 3 }}>
+                          <div style={{ fontSize: 10, color: "#7E7E96", marginTop: 3 }}>
                             残り{pace.remaining}話 ・ 約{pace.daysPerEp}日/話ペースで間に合う
                           </div>
                         </div>
@@ -885,21 +915,21 @@ function PuwanFactory() {
                     <div style={{ ...S.epIco, background: ep.allDone ? "#E8F5E9" : pct > 0 ? "#FFF0F0" : "#F5F0EB" }}>{ep.allDone ? "✅" : "📦"}</div>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 700 }}>{ep.title}</div>
-                      <div style={{ fontSize: 11, color: "#9E9590", marginTop: 1 }}>
+                      <div style={{ fontSize: 11, color: "#7E7E96", marginTop: 1 }}>
                         {dc}/{dt}タスク
                         {secs > 0
-                          ? <span style={{ marginLeft: 6, color: "#BDB5AC" }}>⏱{fmtTime(secs)}<span style={{ fontSize: 9, color: "#C8C0B8", marginLeft: 2 }}>({timedCount}/{dc}計測)</span></span>
+                          ? <span style={{ marginLeft: 6, color: "#4A4A60" }}>⏱{fmtTime(secs)}<span style={{ fontSize: 9, color: "#C8C0B8", marginLeft: 2 }}>({timedCount}/{dc}計測)</span></span>
                           : dc > 0 ? <span style={{ marginLeft: 6, fontSize: 10, color: "#C8C0B8" }}>計測なし</span> : null}
                         {milestone && !ep.allDone && <span style={{ marginLeft: 6, color: "#B0A090", fontSize: 10 }}>📅{milestone.dateStr}目安</span>}
                       </div>
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: ep.allDone ? "#4CAF50" : pct > 0 ? "#F2A7B0" : "#BDB5AC" }}>{ep.allDone ? "完了" : pct + "%"}</span>
-                    <span style={{ fontSize: 12, color: "#BDB5AC", transform: isOpen ? "rotate(180deg)" : "none", transition: ".2s" }}>▼</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: ep.allDone ? "#5DE8A0" : pct > 0 ? "#F2A7B0" : "#4A4A60" }}>{ep.allDone ? "完了" : pct + "%"}</span>
+                    <span style={{ fontSize: 12, color: "#4A4A60", transform: isOpen ? "rotate(180deg)" : "none", transition: ".2s" }}>▼</span>
                   </div>
                 </div>
-                <div style={{ height: 3, background: "#F0EAE3", margin: "0 14px" }}><div style={{ height: "100%", width: `${pct}%`, background: ep.allDone ? "#B8E6C8" : "#F2A7B0", borderRadius: 2, transition: "width .5s" }} /></div>
+                <div style={{ height: 3, background: "#2A2A38", margin: "0 14px" }}><div style={{ height: "100%", width: `${pct}%`, background: ep.allDone ? "#5DE8A060" : "#F2A7B0", borderRadius: 2, transition: "width .5s" }} /></div>
 
                 {isOpen && (
                   <div style={{ padding: "8px 14px 14px" }}>
@@ -918,20 +948,20 @@ function PuwanFactory() {
                       return (
                         <div key={ph.id} style={{ marginBottom: 12 }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: allPh ? "#4CAF50" : "#5D534A" }}>
-                              {ph.icon} {ph.label}<span style={{ fontSize: 10, color: "#BDB5AC", fontWeight: 400, marginLeft: 6 }}>{ph.desc}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: allPh ? "#5DE8A0" : "#C4C4D4" }}>
+                              {ph.icon} {ph.label}<span style={{ fontSize: 10, color: "#4A4A60", fontWeight: 400, marginLeft: 6 }}>{ph.desc}</span>
                             </span>
-                            <span style={{ fontSize: 11, fontFamily: "'Share Tech Mono',monospace", color: allPh ? "#4CAF50" : "#BDB5AC" }}>{prog.done}/{prog.total}</span>
+                            <span style={{ fontSize: 11, fontFamily: "'Share Tech Mono',monospace", color: allPh ? "#5DE8A0" : "#4A4A60" }}>{prog.done}/{prog.total}</span>
                           </div>
-                          <div style={{ height: 4, background: "#F0EAE3", borderRadius: 2, overflow: "hidden", marginBottom: 6 }}>
-                            <div style={{ height: "100%", borderRadius: 2, transition: "width .4s", width: `${phPct}%`, background: allPh ? "#B8E6C8" : ph.id.includes("color") ? "#A7D1E8" : "#F2A7B0" }} />
+                          <div style={{ height: 4, background: "#2A2A38", borderRadius: 2, overflow: "hidden", marginBottom: 6 }}>
+                            <div style={{ height: "100%", borderRadius: 2, transition: "width .4s", width: `${phPct}%`, background: allPh ? "#5DE8A060" : ph.id.includes("color") ? "#5EB5F7" : "#F2A7B0" }} />
                           </div>
 
                           {ph.unit === "batch" && (
                             <div>
                               {ep.done[ph.id] ? (
                                 <button style={S.taskDone} onClick={e => { e.stopPropagation(); toggleTask(ep.id, ph.id); }}>
-                                  <span style={{ fontWeight: 800, fontSize: 14, color: "#4CAF50" }}>✓</span>
+                                  <span style={{ fontWeight: 800, fontSize: 14, color: "#5DE8A0" }}>✓</span>
                                   <span style={{ color: "#9E9E9E" }}>完了{ep.seconds[ph.id] ? " (" + fmtTime(ep.seconds[ph.id]) + ")" : ""}</span>
                                 </button>
                               ) : (
@@ -965,11 +995,11 @@ function PuwanFactory() {
 
                                 return (
                                   <div key={panel.id} style={{ display: "flex", gap: 0 }}>
-                                    <button style={{ ...S.pBtn, flex: 1, background: isDone ? "#F0FAF2" : "#FFF", borderColor: isDone ? "#C8E6C9" : "#ECE5DD", borderRadius: isDone ? 8 : "8px 0 0 8px" }}
+                                    <button style={{ ...S.pBtn, flex: 1, background: isDone ? "#5DE8A010" : "#18181F", borderColor: isDone ? "#5DE8A044" : "#2A2A38", borderRadius: isDone ? 8 : "8px 0 0 8px" }}
                                       onClick={e => { e.stopPropagation(); if (isDone) toggleTask(ep.id, tKey); else startWork(ep.id, { key: tKey, phase: ph, panelId: panel.id, panelLabel: panel.label }); }}>
-                                      {isDone ? <span style={{ color: "#4CAF50", fontWeight: 800, fontSize: 12 }}>✓</span> : <span style={{ color: "#F2A7B0", fontSize: 10 }}>▶</span>}
-                                      <span style={{ fontWeight: 600, fontSize: 11, color: isDone ? "#9E9E9E" : "#5D534A", textDecoration: isDone ? "line-through" : "none" }}>{panel.label}</span>
-                                      {sec > 0 && <span style={{ fontSize: 9, color: "#BDB5AC", fontFamily: "'Share Tech Mono',monospace" }}>{fmtTime(sec)}</span>}
+                                      {isDone ? <span style={{ color: "#5DE8A0", fontWeight: 800, fontSize: 12 }}>✓</span> : <span style={{ color: "#F2A7B0", fontSize: 10 }}>▶</span>}
+                                      <span style={{ fontWeight: 600, fontSize: 11, color: isDone ? "#9E9E9E" : "#C4C4D4", textDecoration: isDone ? "line-through" : "none" }}>{panel.label}</span>
+                                      {sec > 0 && <span style={{ fontSize: 9, color: "#4A4A60", fontFamily: "'Share Tech Mono',monospace" }}>{fmtTime(sec)}</span>}
                                     </button>
                                     {!isDone && (
                                       <button style={S.markDoneBtnSmall} onClick={e => { e.stopPropagation(); markDone(ep.id, tKey); }}>
@@ -980,7 +1010,7 @@ function PuwanFactory() {
                                 );
                               })}
                               {isEdit && ph.id === "color_char" && (
-                                <button style={{ padding: "6px 10px", borderRadius: 8, border: "1.5px dashed #ECE5DD", background: "transparent", color: "#BDB5AC", fontSize: 11, cursor: "pointer" }}
+                                <button style={{ padding: "6px 10px", borderRadius: 8, border: "1.5px dashed #2A2A38", background: "transparent", color: "#4A4A60", fontSize: 11, cursor: "pointer" }}
                                   onClick={e => { e.stopPropagation(); addPanel(ep.id); }}>+ コマ追加</button>
                               )}
                               {!isEdit && !allPh && prog.done < prog.total && (
@@ -995,7 +1025,7 @@ function PuwanFactory() {
                       );
                     })}
 
-                    <div style={{ display: "flex", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px solid #F0EAE3" }}>
+                    <div style={{ display: "flex", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px solid #2A2A38" }}>
                       <button style={S.ghost} onClick={e => { e.stopPropagation(); setEditingEp(isEdit ? null : ep.id); }}>{isEdit ? "✓ 編集完了" : "✏ コマ名編集"}</button>
                       <button style={{ ...S.ghost, color: "#D4626A", borderColor: "#F5D5D5" }} onClick={e => { e.stopPropagation(); if (confirm("「" + ep.title + "」を削除？")) deleteEp(ep.id); }}>🗑 削除</button>
                     </div>
@@ -1006,35 +1036,35 @@ function PuwanFactory() {
           })}
 
           {addingEp ? (
-            <div style={{ background: "#FFF", borderRadius: 14, padding: "16px 14px", boxShadow: "0 1px 4px rgba(0,0,0,.04)", marginTop: 4 }}>
+            <div style={{ background: "#1E1E28", borderRadius: 14, padding: "16px 14px", boxShadow: "0 1px 4px rgba(0,0,0,.04)", marginTop: 4 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>📦 新エピソード追加</div>
 
               {/* ── Import from script ── */}
-              <div style={{ marginBottom: 14, padding: "12px", borderRadius: 10, background: "#F8F5F2", border: "1.5px dashed #E8E0D8" }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#5D534A", marginBottom: 6 }}>📄 台本から読み込み</div>
-                <div style={{ fontSize: 10, color: "#9E9590", marginBottom: 8 }}>タイトルとコマ数（【C1】【C2】…）を自動検出します</div>
+              <div style={{ marginBottom: 14, padding: "12px", borderRadius: 10, background: "#F8F5F2", border: "1.5px dashed #2A2A38" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#C4C4D4", marginBottom: 6 }}>📄 台本から読み込み</div>
+                <div style={{ fontSize: 10, color: "#7E7E96", marginBottom: 8 }}>タイトルとコマ数（【C1】【C2】…）を自動検出します</div>
 
                 {!showPaste ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <label style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", borderRadius: 8, background: "#FFF", border: "1.5px solid #E8E0D8", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#5D534A" }}>
+                      <label style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", borderRadius: 8, background: "#1E1E28", border: "1.5px solid #2A2A38", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#C4C4D4" }}>
                         📂 ファイルを選択
                         <input type="file" accept=".md,.txt,.markdown,text/*" onChange={handleFileImport} style={{ display: "none" }} />
                       </label>
-                      <button style={{ flex: 1, padding: "10px 14px", borderRadius: 8, background: "#FFF", border: "1.5px solid #E8E0D8", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#5D534A", fontFamily: "'M PLUS Rounded 1c',sans-serif" }}
+                      <button style={{ flex: 1, padding: "10px 14px", borderRadius: 8, background: "#1E1E28", border: "1.5px solid #2A2A38", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#C4C4D4", fontFamily: "'M PLUS Rounded 1c',sans-serif" }}
                         onClick={() => setShowPaste(true)}>
                         📝 テキストを貼り付け
                       </button>
                     </div>
-                    <div style={{ fontSize: 9, color: "#BDB5AC", textAlign: "center" }}>Google Driveのファイルもスマホのファイル選択から開けます</div>
+                    <div style={{ fontSize: 9, color: "#4A4A60", textAlign: "center" }}>Google Driveのファイルもスマホのファイル選択から開けます</div>
                   </div>
                 ) : (
                   <div>
                     <textarea
                       style={{
                         width: "100%", minHeight: 120, padding: "10px 12px", borderRadius: 10,
-                        border: "1.5px solid #E8E0D8", fontSize: 12, color: "#3D3530",
-                        background: "#FFF", resize: "vertical", lineHeight: 1.5,
+                        border: "1.5px solid #2A2A38", fontSize: 12, color: "#E4E4EE",
+                        background: "#1E1E28", resize: "vertical", lineHeight: 1.5,
                         fontFamily: "'M PLUS Rounded 1c',sans-serif",
                       }}
                       placeholder={"台本のテキストをここに貼り付けてね\n\n例:\n# 台本：「届くといいな」\n### ▼ PAGE 1（3コマ）\n**【C1】大ゴマ（上段）**\n**【C2】中ゴマ（下段右）**\n..."}
@@ -1045,12 +1075,12 @@ function PuwanFactory() {
                     {pasteText.length > 10 && (() => {
                       const preview = parseScript(pasteText);
                       return (
-                        <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 8, background: "#FFF", border: "1px solid #ECE5DD" }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "#5D534A", marginBottom: 4 }}>検出結果プレビュー</div>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: preview.title ? "#3D3530" : "#D4626A" }}>
+                        <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 8, background: "#1E1E28", border: "1px solid #2A2A38" }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#C4C4D4", marginBottom: 4 }}>検出結果プレビュー</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: preview.title ? "#E4E4EE" : "#D4626A" }}>
                             {preview.title || "（タイトル未検出）"}
                           </div>
-                          <div style={{ fontSize: 11, color: "#9E9590", marginTop: 2 }}>
+                          <div style={{ fontSize: 11, color: "#7E7E96", marginTop: 2 }}>
                             {preview.panels.length > 0
                               ? `${preview.panels.length}コマ検出: ${preview.panels.map(p => p.label).join(", ")}`
                               : "コマが検出できませんでした"}
@@ -1070,17 +1100,17 @@ function PuwanFactory() {
               </div>
 
               {/* ── Or manual add ── */}
-              <div style={{ fontSize: 11, color: "#BDB5AC", fontWeight: 600, marginBottom: 8, textAlign: "center" }}>または手動で追加</div>
+              <div style={{ fontSize: 11, color: "#4A4A60", fontWeight: 600, marginBottom: 8, textAlign: "center" }}>または手動で追加</div>
               <input style={S.input} placeholder="タイトル" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "#9E9590", fontWeight: 600 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "#7E7E96", fontWeight: 600 }}>
                   コマ数
                   <select style={S.sel} value={newPanelCount} onChange={e => setNewPanelCount(+e.target.value)}>
                     {[3, 4, 5, 6, 7, 8, 9, 10, 12].map(n => <option key={n} value={n}>{n}コマ</option>)}
                   </select>
                 </label>
               </div>
-              <div style={{ fontSize: 10, color: "#BDB5AC", marginBottom: 10 }}>※ 工程（下書き〜仕上げ）は自動生成。コマ名は後から編集可</div>
+              <div style={{ fontSize: 10, color: "#4A4A60", marginBottom: 10 }}>※ 工程（下書き〜仕上げ）は自動生成。コマ名は後から編集可</div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button style={S.btnPri} onClick={addEpisode}>追加する</button>
                 <button style={S.ghost} onClick={() => { setAddingEp(false); setShowPaste(false); setPasteText(""); }}>キャンセル</button>
@@ -1091,7 +1121,7 @@ function PuwanFactory() {
           )}
 
           <div style={{ textAlign: "center", padding: "16px 0 32px" }}>
-            <button style={{ padding: "6px 16px", borderRadius: 20, border: "1px solid #E8E0D8", background: "transparent", color: "#BDB5AC", fontSize: 10, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" }} onClick={resetAll}>データリセット</button>
+            <button style={{ padding: "6px 16px", borderRadius: 20, border: "1px solid #2A2A38", background: "transparent", color: "#4A4A60", fontSize: 10, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" }} onClick={resetAll}>データリセット</button>
           </div>
         </div>
       )}
@@ -1138,7 +1168,7 @@ function PuwanFactory() {
         return (
           <div style={{ padding: "4px 16px 32px" }}>
             {/* ── Overview ── */}
-            <div style={{ background: "#FFF", borderRadius: 14, padding: "14px", marginBottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.03)" }}>
+            <div style={{ background: "#1E1E28", borderRadius: 14, padding: "14px", marginBottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.03)" }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>📊 全体サマリー</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                 {[
@@ -1146,16 +1176,16 @@ function PuwanFactory() {
                   { v: (data.activeDays || []).length + "日", l: "累計稼働日" },
                   { v: String(data.totalCompleted || 0), l: "累計タスク" },
                 ].map((s, i) => (
-                  <div key={i} style={{ textAlign: "center", padding: "8px 4px", background: "#FAF6F1", borderRadius: 10 }}>
-                    <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 18, fontWeight: 700, color: "#3D3530" }}>{s.v}</div>
-                    <div style={{ fontSize: 10, color: "#9E9590" }}>{s.l}</div>
+                  <div key={i} style={{ textAlign: "center", padding: "8px 4px", background: "#111116", borderRadius: 10 }}>
+                    <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 18, fontWeight: 700, color: "#E4E4EE" }}>{s.v}</div>
+                    <div style={{ fontSize: 10, color: "#7E7E96" }}>{s.l}</div>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* ── Phase Averages ── */}
-            <div style={{ background: "#FFF", borderRadius: 14, padding: "14px", marginBottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.03)" }}>
+            <div style={{ background: "#1E1E28", borderRadius: 14, padding: "14px", marginBottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.03)" }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>⏱ 工程別の平均時間</div>
               {phaseStats.map(ps => {
                 const maxSec = Math.max(...phaseStats.map(p => p.avg), 1);
@@ -1163,25 +1193,25 @@ function PuwanFactory() {
                   <div key={ps.id} style={{ marginBottom: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
                       <span style={{ fontSize: 12, fontWeight: 600 }}>{ps.icon} {ps.label}</span>
-                      <span style={{ fontSize: 11, fontFamily: "'Share Tech Mono',monospace", color: ps.avg > 0 ? "#5D534A" : "#BDB5AC" }}>
-                        {ps.avg > 0 ? fmtTime(ps.avg) : "—"}<span style={{ fontSize: 9, color: "#BDB5AC", marginLeft: 4 }}>({ps.count}回)</span>
+                      <span style={{ fontSize: 11, fontFamily: "'Share Tech Mono',monospace", color: ps.avg > 0 ? "#C4C4D4" : "#4A4A60" }}>
+                        {ps.avg > 0 ? fmtTime(ps.avg) : "—"}<span style={{ fontSize: 9, color: "#4A4A60", marginLeft: 4 }}>({ps.count}回)</span>
                       </span>
                     </div>
-                    <div style={{ height: 6, background: "#F0EAE3", borderRadius: 3, overflow: "hidden" }}>
-                      <div style={{ height: "100%", borderRadius: 3, transition: "width .4s", width: `${ps.avg > 0 ? (ps.avg / maxSec * 100) : 0}%`, background: ps.id.includes("color") ? "#A7D1E8" : ps.id === "finish" ? "#B8E6C8" : "#F2A7B0" }} />
+                    <div style={{ height: 6, background: "#2A2A38", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ height: "100%", borderRadius: 3, transition: "width .4s", width: `${ps.avg > 0 ? (ps.avg / maxSec * 100) : 0}%`, background: ps.id.includes("color") ? "#5EB5F7" : ps.id === "finish" ? "#5DE8A060" : "#F2A7B0" }} />
                     </div>
                   </div>
                 );
               })}
-              {phaseStats.every(p => p.avg === 0) && <div style={{ fontSize: 11, color: "#BDB5AC", textAlign: "center", padding: 8 }}>タイマーで作業するとここにデータが貯まります</div>}
+              {phaseStats.every(p => p.avg === 0) && <div style={{ fontSize: 11, color: "#4A4A60", textAlign: "center", padding: 8 }}>タイマーで作業するとここにデータが貯まります</div>}
             </div>
 
             {/* ── Latest Episode ── */}
             {latestSummary && (
-              <div style={{ background: "#FFF", borderRadius: 14, padding: "14px", marginBottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.03)" }}>
+              <div style={{ background: "#1E1E28", borderRadius: 14, padding: "14px", marginBottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.03)" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>📖 直近1話：{latestSummary.ep.title}</div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 20, fontWeight: 800, fontFamily: "'Share Tech Mono',monospace", color: latestSummary.secs > 0 ? "#F2A7B0" : "#BDB5AC" }}>
+                  <span style={{ fontSize: 20, fontWeight: 800, fontFamily: "'Share Tech Mono',monospace", color: latestSummary.secs > 0 ? "#F2A7B0" : "#4A4A60" }}>
                     {latestSummary.secs > 0 ? fmtTime(latestSummary.secs) : "計測なし"}
                   </span>
                   {latestSummary.secs > 0 && <span style={{ fontSize: 10, color: "#C8C0B8" }}>({latestSummary.timedCount}/{latestSummary.dc}タスク計測)</span>}
@@ -1189,7 +1219,7 @@ function PuwanFactory() {
                 {latestSummary.phaseBreakdown.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {latestSummary.phaseBreakdown.map((pb, i) => (
-                      <div key={i} style={{ fontSize: 10, padding: "4px 8px", borderRadius: 6, background: "#FAF6F1", color: "#7D7168" }}>
+                      <div key={i} style={{ fontSize: 10, padding: "4px 8px", borderRadius: 6, background: "#111116", color: "#7E7E96" }}>
                         {pb.label} <span style={{ fontFamily: "'Share Tech Mono',monospace", fontWeight: 700 }}>{fmtTime(pb.seconds)}</span>
                       </div>
                     ))}
@@ -1200,7 +1230,7 @@ function PuwanFactory() {
 
             {/* ── Per-Episode Times ── */}
             {epSummaries.length > 0 && (
-              <div style={{ background: "#FFF", borderRadius: 14, padding: "14px", marginBottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.03)" }}>
+              <div style={{ background: "#1E1E28", borderRadius: 14, padding: "14px", marginBottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.03)" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>📈 話ごとの作業時間</div>
                 {epSummaries.map((es, i) => {
                   const maxEpSec = Math.max(...epSummaries.map(e => e.secs).filter(s => s > 0), 1);
@@ -1208,23 +1238,23 @@ function PuwanFactory() {
                     <div key={es.ep.id} style={{ marginBottom: 8 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
                         <span style={{ fontSize: 11, fontWeight: 600, maxWidth: "55%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{es.ep.title}</span>
-                        <span style={{ fontSize: 11, fontFamily: "'Share Tech Mono',monospace", color: es.ep.allDone ? "#4CAF50" : "#5D534A" }}>
+                        <span style={{ fontSize: 11, fontFamily: "'Share Tech Mono',monospace", color: es.ep.allDone ? "#5DE8A0" : "#C4C4D4" }}>
                           {es.secs > 0 ? fmtTime(es.secs) : "計測なし"}
                           {es.ep.allDone && " ✓"}
                           {es.secs > 0 && <span style={{ fontSize: 9, color: "#C8C0B8", marginLeft: 3 }}>({es.timedCount}/{es.dc})</span>}
                         </span>
                       </div>
                       {es.secs > 0 ? (
-                        <div style={{ height: 8, background: "#F0EAE3", borderRadius: 4, overflow: "hidden", display: "flex" }}>
+                        <div style={{ height: 8, background: "#2A2A38", borderRadius: 4, overflow: "hidden", display: "flex" }}>
                           {es.phaseBreakdown.map((pb, j) => {
                             const w = es.secs > 0 ? (pb.seconds / es.secs * 100) : 0;
-                            const colors = { "✏️ 下書き": "#F2A7B0", "🖊️ ペン入れ": "#D4B5E8", "🎨 キャラ塗り": "#A7D1E8", "🏠 背景塗り": "#87C4B4", "✨ 仕上げ": "#B8E6C8" };
-                            return <div key={j} style={{ height: "100%", width: `${w}%`, background: colors[pb.label] || "#E8E0D8", transition: "width .4s" }} />;
+                            const colors = { "✏️ 下書き": "#F2A7B0", "🖊️ ペン入れ": "#A78BFA", "🎨 キャラ塗り": "#5EB5F7", "🏠 背景塗り": "#87C4B4", "✨ 仕上げ": "#5DE8A060" };
+                            return <div key={j} style={{ height: "100%", width: `${w}%`, background: colors[pb.label] || "#2A2A38", transition: "width .4s" }} />;
                           })}
                         </div>
                       ) : (
-                        <div style={{ height: 8, background: "#F0EAE3", borderRadius: 4 }}>
-                          <div style={{ height: "100%", width: `${es.dc / es.dt * 100}%`, background: "#E8E0D8", borderRadius: 4 }} />
+                        <div style={{ height: 8, background: "#2A2A38", borderRadius: 4 }}>
+                          <div style={{ height: "100%", width: `${es.dc / es.dt * 100}%`, background: "#2A2A38", borderRadius: 4 }} />
                         </div>
                       )}
                       <div style={{ fontSize: 9, color: "#C8C0B8", marginTop: 2 }}>{es.dc}/{es.dt}タスク完了</div>
@@ -1233,10 +1263,10 @@ function PuwanFactory() {
                 })}
                 {/* Legend */}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-                  {[{ l: "下書き", c: "#F2A7B0" }, { l: "ペン入れ", c: "#D4B5E8" }, { l: "キャラ塗り", c: "#A7D1E8" }, { l: "背景塗り", c: "#87C4B4" }, { l: "仕上げ", c: "#B8E6C8" }].map(x => (
+                  {[{ l: "下書き", c: "#F2A7B0" }, { l: "ペン入れ", c: "#A78BFA" }, { l: "キャラ塗り", c: "#5EB5F7" }, { l: "背景塗り", c: "#87C4B4" }, { l: "仕上げ", c: "#5DE8A060" }].map(x => (
                     <div key={x.l} style={{ display: "flex", alignItems: "center", gap: 3 }}>
                       <div style={{ width: 8, height: 8, borderRadius: 2, background: x.c }} />
-                      <span style={{ fontSize: 9, color: "#9E9590" }}>{x.l}</span>
+                      <span style={{ fontSize: 9, color: "#7E7E96" }}>{x.l}</span>
                     </div>
                   ))}
                 </div>
@@ -1244,7 +1274,7 @@ function PuwanFactory() {
             )}
 
             {/* ── Achievements ── */}
-            <div style={{ background: "#FFF", borderRadius: 14, padding: "14px", marginBottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.03)" }}>
+            <div style={{ background: "#1E1E28", borderRadius: 14, padding: "14px", marginBottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.03)" }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>🏆 アチーブメント <span style={{ fontSize: 11, color: "#F2A7B0", fontWeight: 800 }}>{(data.unlockedAchievements || []).length}/{ACHIEVEMENTS.length}</span></div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 {ACHIEVEMENTS.map(ach => {
@@ -1253,12 +1283,12 @@ function PuwanFactory() {
                     <div key={ach.id} style={{
                       padding: "8px 10px", borderRadius: 10,
                       background: unlocked ? "#FFF9F0" : "#F8F5F2",
-                      border: unlocked ? "1.5px solid #F5D5A0" : "1.5px solid #ECE5DD",
+                      border: unlocked ? "1.5px solid #F5D5A0" : "1.5px solid #2A2A38",
                       opacity: unlocked ? 1 : 0.5,
                     }}>
                       <div style={{ fontSize: 18, marginBottom: 2 }}>{ach.icon}</div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: unlocked ? "#3D3530" : "#BDB5AC" }}>{ach.label}</div>
-                      <div style={{ fontSize: 9, color: "#9E9590" }}>{ach.desc}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: unlocked ? "#E4E4EE" : "#4A4A60" }}>{ach.label}</div>
+                      <div style={{ fontSize: 9, color: "#7E7E96" }}>{ach.desc}</div>
                     </div>
                   );
                 })}
@@ -1266,7 +1296,7 @@ function PuwanFactory() {
             </div>
 
             <div style={{ textAlign: "center", padding: "16px 0 32px" }}>
-              <button style={{ padding: "6px 16px", borderRadius: 20, border: "1px solid #E8E0D8", background: "transparent", color: "#BDB5AC", fontSize: 10, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" }} onClick={resetAll}>データリセット</button>
+              <button style={{ padding: "6px 16px", borderRadius: 20, border: "1px solid #2A2A38", background: "transparent", color: "#4A4A60", fontSize: 10, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" }} onClick={resetAll}>データリセット</button>
             </div>
           </div>
         );
@@ -1276,16 +1306,16 @@ function PuwanFactory() {
         <div style={{
           position: "fixed", top: 60, left: "50%", transform: "translateX(-50%)",
           zIndex: 150, pointerEvents: "none",
-          background: celebration === "episode" ? "linear-gradient(135deg,#FFF5F5,#FFF)" : "#FFF",
+          background: celebration === "episode" ? "linear-gradient(135deg,#1E1820,#1E1E28)" : "#1E1E28",
           borderRadius: 14, padding: "10px 20px",
           boxShadow: "0 4px 20px rgba(0,0,0,.1)",
-          border: celebration === "episode" ? "2px solid #F2A7B0" : "1.5px solid #B8E6C8",
+          border: celebration === "episode" ? "2px solid #F2A7B0" : "1.5px solid #5DE8A060",
           display: "flex", alignItems: "center", gap: 10,
           animation: "toastIn .3s ease both",
           maxWidth: "90%",
         }}>
           <span style={{ fontSize: celebration === "episode" ? 28 : 22 }}>{celebration === "episode" ? "🎉" : "🏁"}</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#3D3530" }}>{celebration === "episode" ? "1話ぶん 処理完了！！" : "工程クリア！次へ！"}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#E4E4EE" }}>{celebration === "episode" ? "1話ぶん 処理完了！！" : "工程クリア！次へ！"}</span>
         </div>
       )}
       {newAchievement && (
@@ -1303,7 +1333,7 @@ function PuwanFactory() {
           <span style={{ fontSize: 24 }}>{newAchievement.icon}</span>
           <div>
             <div style={{ fontSize: 10, color: "#C4A46C", fontWeight: 700 }}>🏆 解放！</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#3D3530" }}>{newAchievement.label}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#E4E4EE" }}>{newAchievement.label}</div>
           </div>
         </div>
       )}
@@ -1313,54 +1343,54 @@ function PuwanFactory() {
 
 function Confetti({ active, big }) {
   if (!active) return null;
-  const ps = Array.from({ length: big ? 24 : 10 }, (_, i) => ({ i, x: Math.random() * 100, d: Math.random() * .3, dur: .6 + Math.random() * .8, c: ["#F2A7B0", "#A7D1E8", "#B8E6C8", "#F5D5A0", "#D4B5E8", "#FFB7C5"][i % 6], s: 3 + Math.random() * (big ? 7 : 5) }));
+  const ps = Array.from({ length: big ? 24 : 10 }, (_, i) => ({ i, x: Math.random() * 100, d: Math.random() * .3, dur: .6 + Math.random() * .8, c: ["#F2A7B0", "#5EB5F7", "#5DE8A060", "#F5D5A0", "#A78BFA", "#FFB7C5"][i % 6], s: 3 + Math.random() * (big ? 7 : 5) }));
   return <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 200 }}>
     {ps.map(p => <div key={p.i} style={{ position: "absolute", left: p.x + "%", top: -10, width: p.s, height: p.s, borderRadius: Math.random() > .5 ? "50%" : "2px", background: p.c, animation: `confettiFall ${p.dur}s ease-in ${p.d}s forwards` }} />)}
   </div>;
 }
 
 const S = {
-  app: { fontFamily: "'M PLUS Rounded 1c',sans-serif", background: "#FAF6F1", minHeight: "100vh", maxWidth: 520, margin: "0 auto", color: "#3D3530", position: "relative" },
-  loading: { display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#FAF6F1", fontFamily: "'M PLUS Rounded 1c',sans-serif" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px 10px", background: "rgba(255,255,255,.85)", backdropFilter: "blur(10px)", borderBottom: "1px solid #ECE5DD", position: "sticky", top: 0, zIndex: 50 },
+  app: { fontFamily: "'M PLUS Rounded 1c',sans-serif", background: "#111116", minHeight: "100vh", maxWidth: 520, margin: "0 auto", color: "#E4E4EE", position: "relative" },
+  loading: { display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#111116", fontFamily: "'M PLUS Rounded 1c',sans-serif" },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px 10px", background: "rgba(17,17,22,.9)", backdropFilter: "blur(10px)", borderBottom: "1px solid #2A2A38", position: "sticky", top: 0, zIndex: 50 },
   hLeft: { display: "flex", alignItems: "center", gap: 10 },
-  logo: { width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#FDE8EB,#F2A7B0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 },
+  logo: { width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#2D1820,#F2A7B0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 },
   hTitle: { fontSize: 16, fontWeight: 800, letterSpacing: .5 },
-  hSub: { fontSize: 10, color: "#9E9590", fontWeight: 500 },
+  hSub: { fontSize: 10, color: "#7E7E96", fontWeight: 500 },
   comboBadge: { background: "linear-gradient(135deg,#FF6B6B,#F2A7B0)", color: "#FFF", fontWeight: 800, fontSize: 12, padding: "4px 12px", borderRadius: 20, animation: "pulseRing 1s ease infinite", letterSpacing: 1 },
-  puwanRow: { display: "flex", alignItems: "center", gap: 10, padding: "10px 18px", background: "rgba(255,255,255,.4)" },
-  puwanAv: { width: 36, height: 36, borderRadius: "50%", background: "#FDE8EB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, animation: "float 3s ease-in-out infinite" },
-  bubble: { background: "#FFF", borderRadius: "14px 14px 14px 4px", padding: "7px 12px", boxShadow: "0 1px 3px rgba(0,0,0,.04)", flex: 1 },
-  statsBar: { display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 18px", background: "#FFF", margin: "0 16px 8px", borderRadius: 12, boxShadow: "0 1px 4px rgba(0,0,0,.04)" },
+  puwanRow: { display: "flex", alignItems: "center", gap: 10, padding: "10px 18px", background: "rgba(255,255,255,.04)" },
+  puwanAv: { width: 36, height: 36, borderRadius: "50%", background: "#2D1820", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, animation: "float 3s ease-in-out infinite" },
+  bubble: { background: "#1E1E28", borderRadius: "14px 14px 14px 4px", padding: "7px 12px", boxShadow: "0 1px 3px rgba(0,0,0,.3)", flex: 1 },
+  statsBar: { display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 18px", background: "#1E1E28", margin: "0 16px 8px", borderRadius: 12, boxShadow: "0 1px 4px rgba(0,0,0,.3)" },
   si: { flex: 1, textAlign: "center" },
-  sv: { display: "block", fontFamily: "'Share Tech Mono',monospace", fontSize: 17, fontWeight: 700, color: "#3D3530" },
-  sk: { fontSize: 10, color: "#9E9590" },
-  sd: { width: 1, height: 28, background: "#ECE5DD" },
-  workCard: { margin: "8px 16px 16px", borderRadius: 16, overflow: "hidden", background: "#FFF", boxShadow: "0 4px 20px rgba(242,167,176,.15)", border: "2px solid #F2A7B0" },
-  conveyor: { height: 6, background: "repeating-linear-gradient(90deg,#F2A7B0 0,#F2A7B0 10px,#FDE8EB 10px,#FDE8EB 20px)", backgroundSize: "20px 6px", animation: "conveyorMove .6s linear infinite" },
+  sv: { display: "block", fontFamily: "'Share Tech Mono',monospace", fontSize: 17, fontWeight: 700, color: "#E4E4EE" },
+  sk: { fontSize: 10, color: "#7E7E96" },
+  sd: { width: 1, height: 28, background: "#2A2A38" },
+  workCard: { margin: "8px 16px 16px", borderRadius: 16, overflow: "hidden", background: "#1E1E28", boxShadow: "0 4px 20px rgba(242,167,176,.25)", border: "2px solid #F2A7B0" },
+  conveyor: { height: 6, background: "repeating-linear-gradient(90deg,#F2A7B0 0,#F2A7B0 10px,#2D1820 10px,#2D1820 20px)", backgroundSize: "20px 6px", animation: "conveyorMove .6s linear infinite" },
   workInner: { padding: "20px 20px 18px", textAlign: "center" },
-  timerD: { fontFamily: "'Share Tech Mono',monospace", fontSize: 52, fontWeight: 700, color: "#3D3530", letterSpacing: 3, display: "block", animation: "glowPulse 2s ease infinite" },
+  timerD: { fontFamily: "'Share Tech Mono',monospace", fontSize: 52, fontWeight: 700, color: "#E4E4EE", letterSpacing: 3, display: "block", animation: "glowPulse 2s ease infinite" },
   btnDone: { flex: 2, padding: 14, borderRadius: 12, border: "none", background: "linear-gradient(135deg,#F2A7B0,#E8919D)", color: "#FFF", fontSize: 16, fontWeight: 800, cursor: "pointer", letterSpacing: 1 },
-  btnStop: { flex: 1, padding: 14, borderRadius: 12, border: "2px solid #E8E0D8", background: "#FFF", color: "#9E9590", fontSize: 13, fontWeight: 600, cursor: "pointer" },
-  barBg: { height: 8, background: "#ECE5DD", borderRadius: 4, overflow: "hidden" },
+  btnStop: { flex: 1, padding: 14, borderRadius: 12, border: "2px solid #2A2A38", background: "#18181F", color: "#7E7E96", fontSize: 13, fontWeight: 600, cursor: "pointer" },
+  barBg: { height: 8, background: "#2A2A38", borderRadius: 4, overflow: "hidden" },
   barFill: { height: "100%", borderRadius: 4, background: "linear-gradient(90deg,#F2A7B0,#E8919D)", transition: "width .5s" },
-  epCard: { background: "#FFF", borderRadius: 14, marginBottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.03)", overflow: "hidden" },
+  epCard: { background: "#1E1E28", borderRadius: 14, marginBottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.3)", overflow: "hidden" },
   epHead: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px 8px", cursor: "pointer" },
   epIco: { width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 },
-  quickBtn: { width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid #F2A7B0", background: "#FFF5F5", color: "#E8919D", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 12, textAlign: "left", fontFamily: "'M PLUS Rounded 1c',sans-serif" },
-  taskDone: { display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: "1px solid #C8E6C9", background: "#F0FAF2", cursor: "pointer", width: "100%", fontSize: 12, fontFamily: "'M PLUS Rounded 1c',sans-serif" },
-  taskPlay: { display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: "1.5px solid #ECE5DD", background: "#FFF", cursor: "pointer", width: "100%", fontSize: 12, fontFamily: "'M PLUS Rounded 1c',sans-serif", fontWeight: 600, color: "#5D534A" },
-  pBtn: { display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 8, border: "1.5px solid #ECE5DD", cursor: "pointer", fontSize: 11, fontFamily: "'M PLUS Rounded 1c',sans-serif", background: "#FFF", whiteSpace: "nowrap" },
-  bulkBtn: { display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 8, border: "1.5px dashed #C8E6C9", cursor: "pointer", fontSize: 11, fontFamily: "'M PLUS Rounded 1c',sans-serif", background: "#F0FAF2", color: "#4CAF50", fontWeight: 600, whiteSpace: "nowrap" },
-  markDoneBtn: { padding: "8px 14px", borderRadius: 8, border: "1.5px solid #D4CAC0", background: "#FAF6F1", color: "#9E9590", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif", whiteSpace: "nowrap" },
-  markDoneBtnSmall: { padding: "4px 8px", borderRadius: "0 8px 8px 0", border: "1.5px solid #D4CAC0", borderLeft: "none", background: "#FAF6F1", color: "#9E9590", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif", whiteSpace: "nowrap" },
-  editIn: { flex: 1, padding: "5px 8px", borderRadius: 6, border: "1.5px solid #ECE5DD", fontSize: 11, background: "#FAF6F1", color: "#3D3530" },
-  editDel: { width: 24, height: 24, borderRadius: 6, border: "1px solid #F5D5D5", background: "#FFF", color: "#D4626A", fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
-  ghost: { padding: "6px 14px", borderRadius: 8, border: "1px solid #E8E0D8", background: "transparent", color: "#9E9590", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" },
-  input: { width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #E8E0D8", fontSize: 14, color: "#3D3530", background: "#FAF6F1", marginBottom: 10 },
-  sel: { padding: "8px 10px", borderRadius: 8, border: "1.5px solid #E8E0D8", fontSize: 13, color: "#3D3530", background: "#FAF6F1" },
+  quickBtn: { width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid #F2A7B0", background: "#1E1820", color: "#F2A7B0", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 12, textAlign: "left", fontFamily: "'M PLUS Rounded 1c',sans-serif" },
+  taskDone: { display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: "1px solid #5DE8A044", background: "#5DE8A010", cursor: "pointer", width: "100%", fontSize: 12, fontFamily: "'M PLUS Rounded 1c',sans-serif" },
+  taskPlay: { display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: "1.5px solid #2A2A38", background: "#18181F", cursor: "pointer", width: "100%", fontSize: 12, fontFamily: "'M PLUS Rounded 1c',sans-serif", fontWeight: 600, color: "#C4C4D4" },
+  pBtn: { display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 8, border: "1.5px solid #2A2A38", cursor: "pointer", fontSize: 11, fontFamily: "'M PLUS Rounded 1c',sans-serif", background: "#18181F", whiteSpace: "nowrap" },
+  bulkBtn: { display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 8, border: "1.5px dashed #5DE8A044", cursor: "pointer", fontSize: 11, fontFamily: "'M PLUS Rounded 1c',sans-serif", background: "#5DE8A010", color: "#5DE8A0", fontWeight: 600, whiteSpace: "nowrap" },
+  markDoneBtn: { padding: "8px 14px", borderRadius: 8, border: "1.5px solid #2A2A38", background: "#111116", color: "#7E7E96", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif", whiteSpace: "nowrap" },
+  markDoneBtnSmall: { padding: "4px 8px", borderRadius: "0 8px 8px 0", border: "1.5px solid #2A2A38", borderLeft: "none", background: "#111116", color: "#7E7E96", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif", whiteSpace: "nowrap" },
+  editIn: { flex: 1, padding: "5px 8px", borderRadius: 6, border: "1.5px solid #2A2A38", fontSize: 11, background: "#111116", color: "#E4E4EE" },
+  editDel: { width: 24, height: 24, borderRadius: 6, border: "1px solid #ff444444", background: "#1E1E28", color: "#ff6666", fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
+  ghost: { padding: "6px 14px", borderRadius: 8, border: "1px solid #2A2A38", background: "transparent", color: "#7E7E96", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" },
+  input: { width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #2A2A38", fontSize: 14, color: "#E4E4EE", background: "#111116", marginBottom: 10 },
+  sel: { padding: "8px 10px", borderRadius: 8, border: "1.5px solid #2A2A38", fontSize: 13, color: "#E4E4EE", background: "#111116" },
   btnPri: { padding: "10px 24px", borderRadius: 10, border: "none", background: "#F2A7B0", color: "#FFF", fontSize: 14, fontWeight: 700, cursor: "pointer" },
-  addBtn: { width: "100%", padding: 14, borderRadius: 14, border: "2px dashed #E8E0D8", background: "transparent", color: "#9E9590", fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 4, fontFamily: "'M PLUS Rounded 1c',sans-serif" },
+  addBtn: { width: "100%", padding: 14, borderRadius: 14, border: "2px dashed #2A2A38", background: "transparent", color: "#7E7E96", fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 4, fontFamily: "'M PLUS Rounded 1c',sans-serif" },
 };
 
 // ─── Render ───
