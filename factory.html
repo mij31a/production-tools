@@ -61,6 +61,35 @@ const PHASES = [
   { id: "finish", label: "仕上げ", icon: "✨", unit: "panel", desc: "1コマずつ" },
 ];
 
+// ─── Post types ───
+const POST_TYPES = [
+  { id: "manga", label: "漫画", icon: "📖", color: "#FF6B9D" },
+  { id: "video", label: "動画", icon: "🎬", color: "#5EB5F7" },
+  { id: "illust", label: "イラスト", icon: "🎨", color: "#A78BFA" },
+];
+const ptMap = {}; POST_TYPES.forEach(p => { ptMap[p.id] = p; });
+
+// ─── Status derivation (unified with dashboard) ───
+const STATUSES = [
+  { id: "none", label: "未着手", color: "#4A4A60", bg: "#4A4A6020" },
+  { id: "wip", label: "作画中", color: "#F2A7B0", bg: "#F2A7B020" },
+  { id: "art_done", label: "作画完了", color: "#A78BFA", bg: "#A78BFA20" },
+  { id: "ready", label: "投稿準備済", color: "#F7C948", bg: "#F7C94820" },
+  { id: "posted", label: "投稿済", color: "#5DE8A0", bg: "#5DE8A020" },
+];
+const sMap = {}; STATUSES.forEach(s => { sMap[s.id] = s; });
+
+function deriveStatus(ep) {
+  const ss = ep.snsState || {};
+  const allPosted = ["x", "threads", "ig", "tiktok"].every(s => ss[s] === "posted");
+  if (allPosted) return "posted";
+  if (ep.postDate) return "ready";
+  if (ep.allDone) return "art_done";
+  const { done: dc } = countAllDone(ep);
+  if (dc > 0) return "wip";
+  return "none";
+}
+
 // ─── Default Episodes ───
 function makePanels(labels) {
   return labels.map((l, i) => ({ id: "c" + (i + 1), label: l }));
@@ -578,6 +607,7 @@ function PuwanFactory() {
     setNewTitle(""); setNewPanelCount(7); setAddingEp(false);
   }
 
+  function updateEp(epId, updates) { save({ ...data, episodes: data.episodes.map(e => e.id === epId ? { ...e, ...updates } : e) }); }
   function deleteEp(epId) { save({ ...data, episodes: data.episodes.filter(e => e.id !== epId) }); if (activeEp === epId) setActiveEp(null); }
 
   function renamePanelLabel(epId, panelId, label) {
@@ -952,28 +982,36 @@ function PuwanFactory() {
             const pace = calcPace(episodes, data.goal);
             const milestone = pace?.milestones?.find(m => m.epId === ep.id);
 
+            const epStatus = deriveStatus(ep);
+            const sts = sMap[epStatus] || sMap.none;
+            const pt = ptMap[ep.postType] || ptMap.manga;
+
             return (
               <div key={ep.id} style={{ ...S.epCard, animation: `slideIn .25s ease ${ei * .04}s both` }}>
                 <div style={S.epHead} onClick={() => setActiveEp(isOpen ? null : ep.id)}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ ...S.epIco, background: ep.allDone ? "#5DE8A015" : pct > 0 ? "#F2A7B015" : "#1E1E28" }}>{ep.allDone ? "✅" : "📦"}</div>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 700 }}>{ep.title}</div>
-                      <div style={{ fontSize: 11, color: "#7E7E96", marginTop: 1 }}>
-                        {dc}/{dt}タスク
-                        {secs > 0
-                          ? <span style={{ marginLeft: 6, color: "#4A4A60" }}>⏱{fmtTime(secs)}<span style={{ fontSize: 9, color: "#4A4A60", marginLeft: 2 }}>({timedCount}/{dc}計測)</span></span>
-                          : dc > 0 ? <span style={{ marginLeft: 6, fontSize: 10, color: "#4A4A60" }}>計測なし</span> : null}
-                        {milestone && !ep.allDone && <span style={{ marginLeft: 6, color: "#B0A090", fontSize: 10 }}>📅{milestone.dateStr}目安</span>}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                    <div style={{ ...S.epIco, background: pt.color + "15" }}>
+                      <span style={{ fontSize: 16 }}>{pt.icon}</span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                        <span style={{ fontSize: 10, color: "#4A4A60", fontWeight: 700, fontFamily: "'Share Tech Mono',monospace" }}>#{ei + 1}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ep.title}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 10, padding: "1px 8px", borderRadius: 4, background: sts.bg, color: sts.color, fontWeight: 600, border: "1px solid " + sts.color + "44" }}>{sts.label}</span>
+                        <span style={{ fontSize: 10, color: "#4A4A60" }}>{dc}/{dt}タスク</span>
+                        {secs > 0 && <span style={{ fontSize: 10, color: "#4A4A60" }}>⏱{fmtTime(secs)}</span>}
+                        {milestone && !ep.allDone && <span style={{ fontSize: 10, color: "#4A4A60" }}>📅{milestone.dateStr}</span>}
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: ep.allDone ? "#5DE8A0" : pct > 0 ? "#F2A7B0" : "#4A4A60" }}>{ep.allDone ? "完了" : pct + "%"}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, fontFamily: "'Share Tech Mono',monospace", color: ep.allDone ? "#5DE8A0" : pct > 0 ? "#F2A7B0" : "#4A4A60" }}>{pct}%</span>
                     <span style={{ fontSize: 12, color: "#4A4A60", transform: isOpen ? "rotate(180deg)" : "none", transition: ".2s" }}>▼</span>
                   </div>
                 </div>
-                <div style={{ height: 3, background: "#2A2A38", margin: "0 14px" }}><div style={{ height: "100%", width: `${pct}%`, background: ep.allDone ? "#5DE8A060" : "#F2A7B0", borderRadius: 2, transition: "width .5s" }} /></div>
+                <div style={{ height: 3, background: "#2A2A38", margin: "0 14px" }}><div style={{ height: "100%", width: `${pct}%`, background: ep.allDone ? "#5DE8A060" : sts.color + "88", borderRadius: 2, transition: "width .5s" }} /></div>
 
                 {isOpen && (
                   <div style={{ padding: "8px 14px 14px" }}>
@@ -1068,6 +1106,27 @@ function PuwanFactory() {
                         </div>
                       );
                     })}
+
+                    {/* ─── Basic Info Section ─── */}
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #2A2A38" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#7E7E96", marginBottom: 8 }}>📋 基本情報</div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 11, color: "#4A4A60" }}>タイプ</span>
+                        {POST_TYPES.map(t => {
+                          const active = (ep.postType || "manga") === t.id;
+                          return <button key={t.id} onClick={e => { e.stopPropagation(); updateEp(ep.id, { postType: t.id }); }}
+                            style={{ background: active ? t.color + "22" : "transparent", color: active ? t.color : "#4A4A60", border: "1px solid " + (active ? t.color + "44" : "#2A2A38"), borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 11, fontFamily: "'M PLUS Rounded 1c',sans-serif", display: "flex", alignItems: "center", gap: 4 }}>
+                            <span>{t.icon}</span><span>{t.label}</span>
+                          </button>;
+                        })}
+                      </div>
+                      <div style={{ marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, color: "#4A4A60", display: "block", marginBottom: 3 }}>メモ</span>
+                        <textarea value={ep.scriptMemo || ""} onChange={e => { e.stopPropagation(); updateEp(ep.id, { scriptMemo: e.target.value }); }} onClick={e => e.stopPropagation()}
+                          placeholder="アイデアメモ・話の骨子…" rows={2}
+                          style={{ ...S.input, marginBottom: 0, fontSize: 12, resize: "vertical", minHeight: 40 }} />
+                      </div>
+                    </div>
 
                     <div style={{ display: "flex", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px solid #2A2A38" }}>
                       <button style={S.ghost} onClick={e => { e.stopPropagation(); setEditingEp(isEdit ? null : ep.id); }}>{isEdit ? "✓ 編集完了" : "✏ コマ名編集"}</button>

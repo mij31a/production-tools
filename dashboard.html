@@ -469,7 +469,7 @@ function ScheduleTimeline({ eps, onOpenId, openId, dn }) {
 function DetailPanel({ ep, update, onClose, onDelete, allEps, displayNum }) {
   const status = deriveStatus(ep);
   const st = ep.steps || {};
-  const [dtab, setDtab] = useState("basic");
+  const [dtab, setDtab] = useState("sns");
 
   const schedule = getDeliverySchedule(ep);
 
@@ -486,7 +486,6 @@ function DetailPanel({ ep, update, onClose, onDelete, allEps, displayNum }) {
   }
 
   const detailTabs = [
-    { id: "basic", label: "📋 基本情報" },
     { id: "sns", label: "📱 SNS配信" },
     { id: "perf", label: "📊 パフォーマンス" },
   ];
@@ -494,51 +493,20 @@ function DetailPanel({ ep, update, onClose, onDelete, allEps, displayNum }) {
   return <div style={{ background: C.card, borderRadius: 16, padding: 20, marginBottom: 16, border: "1px solid " + C.accent + "33", boxShadow: "0 8px 32px " + C.accentGlow }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 12, marginRight: 2 }}>{(ptMap[ep.postType] || ptMap.manga).icon}</span>
         <span style={{ fontSize: 15, fontWeight: 700, color: C.accent }}>{"#" + displayNum + " " + (ep.title || "無題")}</span>
         <StatusPill status={status} />
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={() => { if (confirm("削除しますか？")) onDelete(); }} style={{ background: "none", border: "1px solid #ff444444", color: C.red, borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}>削除</button>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", fontSize: 20, fontFamily: "inherit" }}>✕</button>
-      </div>
+      <button onClick={onClose} style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", fontSize: 20, fontFamily: "inherit" }}>✕</button>
+    </div>
+    {/* Post date inline */}
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+      <span style={{ fontSize: 11, color: C.sub }}>X配信日</span>
+      <CalendarPicker value={ep.postDate || ""} onChange={v => update({ postDate: v })} label="日付を選択" />
     </div>
     <nav style={{ display: "flex", gap: 2, marginBottom: 14 }}>
       {detailTabs.map(t => <button key={t.id} onClick={() => setDtab(t.id)} style={{ background: dtab === t.id ? C.bg : "transparent", color: dtab === t.id ? C.accent : C.sub, border: "1px solid " + (dtab === t.id ? C.accent + "44" : C.border), padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 500, fontFamily: "inherit" }}>{t.label}</button>)}
     </nav>
-
-    {dtab === "basic" && <>
-      <div style={{ marginBottom: 14, padding: 12, background: C.surface, borderRadius: 10, border: "1px solid " + C.border }}>
-        <div style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>台本ステータス（作画はファクトリーで管理）</div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
-          {STEPS.map(step => <label key={step.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-            <Chk on={!!st[step.id]} toggle={() => update({ steps: { ...st, [step.id]: !st[step.id] } })} />
-            <span style={{ fontSize: 13, color: st[step.id] ? C.green : C.sub }}>{step.label}</span>
-          </label>)}
-        </div>
-        <ProgressBar ep={ep} />
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "60px 1fr 200px", gap: 10, marginBottom: 14 }}>
-        <div><div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>話数</div><div style={{ ...inputS, background: "transparent", border: "1px solid " + C.border, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: C.accent }}>#{displayNum}</div></div>
-        <div><div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>タイトル</div><input value={ep.title || ""} onChange={e => update({ title: e.target.value })} style={{ ...inputS, width: "100%" }} /></div>
-        <div><div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>X配信日</div><CalendarPicker value={ep.postDate || ""} onChange={v => update({ postDate: v })} label="日付を選択" /></div>
-      </div>
-      <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 11, color: C.sub }}>タイプ</span>
-        <PostTypePicker value={ep.postType} onChange={v => update({ postType: v })} />
-      </div>
-
-      {/* Script Memo */}
-      <div style={{ marginBottom: 14, padding: 12, background: C.surface, borderRadius: 10, border: "1px solid " + C.border }}>
-        <div style={{ fontSize: 11, color: C.sub, marginBottom: 6 }}>💡 アイデアメモ（入れたい要素・話の骨子）</div>
-        <textarea value={ep.scriptMemo || ""} onChange={e => update({ scriptMemo: e.target.value })} placeholder="例: 「既読無視」がテーマ。荷物が透明で中身が丸見え。ぷわんが目隠しシールを貼る。" rows={3} style={{ ...inputS, width: "100%", fontSize: 12, resize: "vertical" }} />
-      </div>
-
-      {/* Script Content */}
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>📝 台本</div>
-        <StoryDropZone value={ep.story} onChange={v => update({ story: v })} />
-      </div>
-    </>}
 
     {dtab === "sns" && <>
       {/* Delivery Schedule */}
@@ -1075,15 +1043,13 @@ function MangaDashboard() {
     </nav>
     <main style={{ padding: "20px 24px", maxWidth: 1200, margin: "0 auto" }}>
       <div style={{ marginBottom: 12, display: "flex", gap: 8, alignItems: "center" }}>
-        {adding ? <AddEpisodeBar eps={eps} defaultCadence={data.defaultCadence || "daily"} onAdd={addEp} onCancel={() => setAdding(false)} />
-          : <>
-            <button onClick={() => setAdding(true)} style={btnS(C.accent)}>＋ 新規エピソード</button>
-            {tab === "table" && !deleteMode && <button onClick={() => { setDeleteMode(true); setDeleteSelection([]); }} style={{ ...ghostBtn, fontSize: 12, padding: "8px 14px", color: C.dim }}>🗑 削除モード</button>}
-            {tab === "table" && deleteMode && <>
-              <button onClick={() => { if (deleteSelection.length > 0) setConfirmDelete(true); }} disabled={deleteSelection.length === 0} style={{ ...btnS(C.red), fontSize: 12, padding: "8px 14px", opacity: deleteSelection.length === 0 ? .4 : 1 }}>🗑 {deleteSelection.length}件を削除</button>
-              <button onClick={() => { setDeleteMode(false); setDeleteSelection([]); }} style={{ ...ghostBtn, fontSize: 12, padding: "8px 14px" }}>キャンセル</button>
-            </>}
-          </>}
+        <span style={{ fontSize: 11, color: C.dim }}>エピソードの追加・編集は制作管理タブから</span>
+        <div style={{ flex: 1 }} />
+        {tab === "table" && !deleteMode && <button onClick={() => { setDeleteMode(true); setDeleteSelection([]); }} style={{ ...ghostBtn, fontSize: 12, padding: "8px 14px", color: C.dim }}>🗑 削除モード</button>}
+        {tab === "table" && deleteMode && <>
+          <button onClick={() => { if (deleteSelection.length > 0) setConfirmDelete(true); }} disabled={deleteSelection.length === 0} style={{ ...btnS(C.red), fontSize: 12, padding: "8px 14px", opacity: deleteSelection.length === 0 ? .4 : 1 }}>🗑 {deleteSelection.length}件を削除</button>
+          <button onClick={() => { setDeleteMode(false); setDeleteSelection([]); }} style={{ ...ghostBtn, fontSize: 12, padding: "8px 14px" }}>キャンセル</button>
+        </>}
       </div>
       {openId && (() => { const ep = eps.find(e => e.id === openId); if (!ep) return null; return <DetailPanel ep={ep} update={u => upEp(openId, u)} onClose={() => setOpenId(null)} onDelete={() => delEp(openId)} allEps={eps} displayNum={dn(ep)} />; })()}
 
@@ -1105,11 +1071,10 @@ function MangaDashboard() {
                 const active = sortKey === h.key;
                 return <th key={h.label} onClick={() => cycleSort(h.key)} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: active ? C.accent : C.sub, borderBottom: "1px solid " + C.border, cursor: "pointer", userSelect: "none" }}>{h.label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>;
               })}
-              {STEPS.map(s => <th key={s.id} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: C.sub, borderBottom: "1px solid " + C.border }}>{s.label}</th>)}
               {SNS_LIST.map(sns => <th key={sns.id} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: sns.color, borderBottom: "1px solid " + C.border }}><SnsIcon id={sns.id} size={16} /></th>)}
             </tr></thead>
             <tbody>
-              {filtered.length === 0 ? <tr><td colSpan={99} style={{ padding: 48, textAlign: "center", color: C.dim }}>{eps.length === 0 ? "「＋ 新規エピソード」から追加しましょう！" : "フィルター条件に一致なし"}</td></tr>
+              {filtered.length === 0 ? <tr><td colSpan={99} style={{ padding: 48, textAlign: "center", color: C.dim }}>{eps.length === 0 ? "制作管理タブからエピソードを追加してください" : "フィルター条件に一致なし"}</td></tr>
               : filtered.map(({ ep, idx, status }) => {
                 const isOpen = openId === ep.id;
                 const isSelected = deleteSelection.includes(ep.id);
@@ -1129,9 +1094,6 @@ function MangaDashboard() {
                   {columns.includes("typeNum") && <td style={{ ...cellS, fontSize: 11, color: (ptMap[ep.postType] || ptMap.manga).color }}>{typeNumLabel(ep)}</td>}
                   <td style={cellS}><StatusPill status={status} /></td>
                   <td style={{ ...cellS, fontSize: 12, color: C.sub }}>{fmtDate(ep.postDate)}</td>
-                  {STEPS.map(step => <td key={step.id} style={cellS} onClick={e => e.stopPropagation()}>
-                    <Chk on={!!((ep.steps || {})[step.id])} toggle={() => upEp(ep.id, { steps: { ...(ep.steps || {}), [step.id]: !((ep.steps || {})[step.id]) } })} />
-                  </td>)}
                   {SNS_LIST.map(sns => <td key={sns.id} style={cellS} onClick={e => e.stopPropagation()}>
                     <SnsStateBtn value={(ep.snsState || {})[sns.id] || "none"} onChange={v => upEp(ep.id, { snsState: { ...(ep.snsState || {}), [sns.id]: v } })} />
                   </td>)}
