@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex, nofollow">
 <title>ぷわんな毎日 ダッシュボード</title>
-<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Dela+Gothic+One&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet" />
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #111116; }
@@ -1020,14 +1020,14 @@ function MangaDashboard() {
     <header style={{ padding: "20px 24px 16px", borderBottom: "1px solid " + C.border, background: "linear-gradient(180deg," + C.surface + " 0%," + C.bg + " 100%)", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
       <div style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg," + C.accent + "," + C.purple + ")", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, boxShadow: "0 4px 24px " + C.accentGlow, flexShrink: 0 }}>🖊️</div>
       <div style={{ flex: 1, minWidth: 180 }}>
-        {editName ? <input autoFocus value={data.projectName} onChange={e => save({ ...data, projectName: e.target.value })} onBlur={() => setEditName(false)} onKeyDown={e => { if (e.key === "Enter") setEditName(false); }} style={{ ...inputS, fontSize: 20, fontWeight: 700, fontFamily: "'Dela Gothic One'" }} />
-          : <h1 onClick={() => setEditName(true)} style={{ fontFamily: "'Dela Gothic One'", fontSize: 20, margin: 0, cursor: "pointer", letterSpacing: -0.5 }}>{data.projectName}</h1>}
+        {editName ? <input autoFocus value={data.projectName} onChange={e => save({ ...data, projectName: e.target.value })} onBlur={() => setEditName(false)} onKeyDown={e => { if (e.key === "Enter") setEditName(false); }} style={{ ...inputS, fontSize: 20, fontWeight: 700, fontFamily: "'Zen Kaku Gothic New', sans-serif" }} />
+          : <h1 onClick={() => setEditName(true)} style={{ fontFamily: "'Zen Kaku Gothic New', sans-serif", fontSize: 20, margin: 0, cursor: "pointer", letterSpacing: -0.5 }}>{data.projectName}</h1>}
         <div style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>配信管理 v12</div>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         {[{ n: counts.total, l: "全話", c: C.text }, { n: counts.wip, l: "制作中", c: C.blue }, { n: counts.posted, l: "投稿済", c: C.green }, { n: counts.ideas, l: "未着手", c: C.dim }].map(s =>
           <div key={s.l} style={{ background: C.surface, border: "1px solid " + C.border, borderRadius: 10, padding: "5px 14px", textAlign: "center" }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: s.c, fontFamily: "'Dela Gothic One'" }}>{s.n}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: s.c, fontFamily: "'Zen Kaku Gothic New', sans-serif" }}>{s.n}</div>
             <div style={{ fontSize: 10, color: C.sub }}>{s.l}</div>
           </div>
         )}

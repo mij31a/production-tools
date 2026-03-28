@@ -270,6 +270,8 @@ function PuwanFactory() {
   const [goalStartEpInput, setGoalStartEpInput] = useState(1);
   const [goalEndEpInput, setGoalEndEpInput] = useState(5);
   const [showAchievements, setShowAchievements] = useState(false);
+  const [sortAsc, setSortAsc] = useState(true);
+  const [hideCompleted, setHideCompleted] = useState(false);
   const [newAchievement, setNewAchievement] = useState(null); // toast
   const [tab, setTab] = useState("work"); // "work" | "stats"
   const [showSettings, setShowSettings] = useState(false);
@@ -642,7 +644,7 @@ function PuwanFactory() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {combo >= 2 && <div style={S.comboBadge}>🔥 {combo} COMBO</div>}
-          <button onClick={() => setShowSettings(!showSettings)} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #2A2A38", background: showSettings ? "#F2A7B0" : "#18181F", color: showSettings ? "#FFF" : "#7E7E96", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>⚙</button>
+          <button onClick={() => setShowSettings(!showSettings)} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #2A2A38", background: showSettings ? "#F2A7B020" : "#18181F", color: showSettings ? "#F2A7B0" : "#7E7E96", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>⚙</button>
         </div>
       </header>
 
@@ -662,16 +664,12 @@ function PuwanFactory() {
             {gasStatus && <div style={{ fontSize: 10, color: gasStatus.includes("完了") ? "#5DE8A0" : "#E88D67", marginTop: 4 }}>{gasStatus}</div>}
           </div>
 
-          <button style={{ ...S.ghost, color: "#D4626A", borderColor: "#F5D5D5", fontSize: 10, width: "100%" }}
+          <button style={{ ...S.ghost, color: "#D4626A", borderColor: "#D4626A44", fontSize: 10, width: "100%" }}
             onClick={() => { if(confirm("全データをリセットしますか？")) { resetAll(); setShowSettings(false); } }}>データリセット</button>
         </div>
       )}
 
-      {/* Puwan */}
-      <div style={S.puwanRow}>
-        <div style={S.puwanAv}><span style={{ fontSize: 11, letterSpacing: 1 }}>{working ? "◕ᴗ◕" : celebration ? "◕ꈍ◕" : "◕‿◕"}</span></div>
-        <div style={S.bubble}><span style={{ fontSize: 12.5, lineHeight: 1.5, color: "#C4C4D4" }}>{puwanMsg}</span></div>
-      </div>
+      {/* Puwan - removed per user request */}
 
       {/* Stats - 4 items */}
       <div style={S.statsBar}>
@@ -691,8 +689,8 @@ function PuwanFactory() {
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               flex: 1, padding: "8px 0", border: "none", cursor: "pointer",
               fontFamily: "'M PLUS Rounded 1c',sans-serif", fontSize: 12, fontWeight: 700,
-              background: tab === t.id ? "#F2A7B0" : "transparent",
-              color: tab === t.id ? "#FFF" : "#7E7E96",
+              background: tab === t.id ? "#F2A7B030" : "transparent",
+              color: tab === t.id ? "#F2A7B0" : "#4A4A60",
               transition: "all .2s",
             }}>{t.label}</button>
           ))}
@@ -811,7 +809,7 @@ function PuwanFactory() {
                     </div>
 
                     {pace.status === "done" ? (
-                      <div style={{ padding: "8px 12px", borderRadius: 10, background: "#E8F5E9", textAlign: "center" }}>
+                      <div style={{ padding: "8px 12px", borderRadius: 10, background: "#5DE8A015", border: "1px solid #5DE8A033", textAlign: "center" }}>
                         <span style={{ fontSize: 13, fontWeight: 700, color: "#5DE8A0" }}>🎉 {pace.msg}</span>
                       </div>
                     ) : (
@@ -897,7 +895,32 @@ function PuwanFactory() {
             );
           })()}
 
-          {episodes.map((ep, ei) => {
+          {/* ─── Controls: Add + Sort + Hide ─── */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <button style={{ ...S.btnPri, padding: "8px 16px", fontSize: 12, flex: "none" }} onClick={() => setAddingEp(true)}>＋ エピソード追加</button>
+            <div style={{ flex: 1 }} />
+            <button style={{ ...S.ghost, fontSize: 10, padding: "5px 10px" }} onClick={() => setSortAsc(!sortAsc)}>
+              {sortAsc ? "▲ 昇順" : "▼ 降順"}
+            </button>
+            <button style={{ ...S.ghost, fontSize: 10, padding: "5px 10px", color: hideCompleted ? "#5DE8A0" : "#7E7E96", borderColor: hideCompleted ? "#5DE8A044" : "#2A2A38" }} onClick={() => setHideCompleted(!hideCompleted)}>
+              {hideCompleted ? "✓ 完了非表示" : "完了も表示"}
+            </button>
+          </div>
+
+          {/* Hidden count notice */}
+          {hideCompleted && episodes.filter(e => e.allDone).length > 0 && (
+            <div style={{ fontSize: 11, color: "#4A4A60", textAlign: "center", marginBottom: 8, padding: "6px 10px", background: "#18181F", borderRadius: 8 }}>
+              {episodes.filter(e => e.allDone).length}話が非表示中
+              <button style={{ background: "none", border: "none", color: "#5DE8A0", fontSize: 11, cursor: "pointer", marginLeft: 6, fontFamily: "'M PLUS Rounded 1c',sans-serif", fontWeight: 600 }} onClick={() => setHideCompleted(false)}>再表示</button>
+            </div>
+          )}
+
+          {(() => {
+            let displayEps = episodes.map((ep, i) => ({ ...ep, _origIndex: i }));
+            if (hideCompleted) displayEps = displayEps.filter(e => !e.allDone);
+            if (!sortAsc) displayEps = [...displayEps].reverse();
+            return displayEps;
+          })().map((ep, ei) => {
             const { done: dc, total: dt } = countAllDone(ep);
             const pct = dt > 0 ? Math.round(dc / dt * 100) : 0;
             const isOpen = activeEp === ep.id;
@@ -912,14 +935,14 @@ function PuwanFactory() {
               <div key={ep.id} style={{ ...S.epCard, animation: `slideIn .25s ease ${ei * .04}s both` }}>
                 <div style={S.epHead} onClick={() => setActiveEp(isOpen ? null : ep.id)}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ ...S.epIco, background: ep.allDone ? "#E8F5E9" : pct > 0 ? "#FFF0F0" : "#F5F0EB" }}>{ep.allDone ? "✅" : "📦"}</div>
+                    <div style={{ ...S.epIco, background: ep.allDone ? "#5DE8A015" : pct > 0 ? "#F2A7B015" : "#1E1E28" }}>{ep.allDone ? "✅" : "📦"}</div>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 700 }}>{ep.title}</div>
                       <div style={{ fontSize: 11, color: "#7E7E96", marginTop: 1 }}>
                         {dc}/{dt}タスク
                         {secs > 0
-                          ? <span style={{ marginLeft: 6, color: "#4A4A60" }}>⏱{fmtTime(secs)}<span style={{ fontSize: 9, color: "#C8C0B8", marginLeft: 2 }}>({timedCount}/{dc}計測)</span></span>
-                          : dc > 0 ? <span style={{ marginLeft: 6, fontSize: 10, color: "#C8C0B8" }}>計測なし</span> : null}
+                          ? <span style={{ marginLeft: 6, color: "#4A4A60" }}>⏱{fmtTime(secs)}<span style={{ fontSize: 9, color: "#4A4A60", marginLeft: 2 }}>({timedCount}/{dc}計測)</span></span>
+                          : dc > 0 ? <span style={{ marginLeft: 6, fontSize: 10, color: "#4A4A60" }}>計測なし</span> : null}
                         {milestone && !ep.allDone && <span style={{ marginLeft: 6, color: "#B0A090", fontSize: 10 }}>📅{milestone.dateStr}目安</span>}
                       </div>
                     </div>
@@ -1027,7 +1050,7 @@ function PuwanFactory() {
 
                     <div style={{ display: "flex", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px solid #2A2A38" }}>
                       <button style={S.ghost} onClick={e => { e.stopPropagation(); setEditingEp(isEdit ? null : ep.id); }}>{isEdit ? "✓ 編集完了" : "✏ コマ名編集"}</button>
-                      <button style={{ ...S.ghost, color: "#D4626A", borderColor: "#F5D5D5" }} onClick={e => { e.stopPropagation(); if (confirm("「" + ep.title + "」を削除？")) deleteEp(ep.id); }}>🗑 削除</button>
+                      <button style={{ ...S.ghost, color: "#D4626A", borderColor: "#D4626A44" }} onClick={e => { e.stopPropagation(); if (confirm("「" + ep.title + "」を削除？")) deleteEp(ep.id); }}>🗑 削除</button>
                     </div>
                   </div>
                 )}
@@ -1035,12 +1058,12 @@ function PuwanFactory() {
             );
           })}
 
-          {addingEp ? (
-            <div style={{ background: "#1E1E28", borderRadius: 14, padding: "16px 14px", boxShadow: "0 1px 4px rgba(0,0,0,.04)", marginTop: 4 }}>
+          {addingEp && (
+            <div style={{ background: "#1E1E28", borderRadius: 14, padding: "16px 14px", boxShadow: "0 1px 4px rgba(0,0,0,.04)", marginBottom: 10 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>📦 新エピソード追加</div>
 
               {/* ── Import from script ── */}
-              <div style={{ marginBottom: 14, padding: "12px", borderRadius: 10, background: "#F8F5F2", border: "1.5px dashed #2A2A38" }}>
+              <div style={{ marginBottom: 14, padding: "12px", borderRadius: 10, background: "#18181F", border: "1.5px dashed #2A2A38" }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#C4C4D4", marginBottom: 6 }}>📄 台本から読み込み</div>
                 <div style={{ fontSize: 10, color: "#7E7E96", marginBottom: 8 }}>タイトルとコマ数（【C1】【C2】…）を自動検出します</div>
 
@@ -1071,7 +1094,6 @@ function PuwanFactory() {
                       value={pasteText}
                       onChange={e => setPasteText(e.target.value)}
                     />
-                    {/* Preview */}
                     {pasteText.length > 10 && (() => {
                       const preview = parseScript(pasteText);
                       return (
@@ -1116,8 +1138,6 @@ function PuwanFactory() {
                 <button style={S.ghost} onClick={() => { setAddingEp(false); setShowPaste(false); setPasteText(""); }}>キャンセル</button>
               </div>
             </div>
-          ) : (
-            <button style={S.addBtn} onClick={() => setAddingEp(true)}>＋ エピソードを追加</button>
           )}
 
           <div style={{ textAlign: "center", padding: "16px 0 32px" }}>
@@ -1214,7 +1234,7 @@ function PuwanFactory() {
                   <span style={{ fontSize: 20, fontWeight: 800, fontFamily: "'Share Tech Mono',monospace", color: latestSummary.secs > 0 ? "#F2A7B0" : "#4A4A60" }}>
                     {latestSummary.secs > 0 ? fmtTime(latestSummary.secs) : "計測なし"}
                   </span>
-                  {latestSummary.secs > 0 && <span style={{ fontSize: 10, color: "#C8C0B8" }}>({latestSummary.timedCount}/{latestSummary.dc}タスク計測)</span>}
+                  {latestSummary.secs > 0 && <span style={{ fontSize: 10, color: "#4A4A60" }}>({latestSummary.timedCount}/{latestSummary.dc}タスク計測)</span>}
                 </div>
                 {latestSummary.phaseBreakdown.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
@@ -1241,7 +1261,7 @@ function PuwanFactory() {
                         <span style={{ fontSize: 11, fontFamily: "'Share Tech Mono',monospace", color: es.ep.allDone ? "#5DE8A0" : "#C4C4D4" }}>
                           {es.secs > 0 ? fmtTime(es.secs) : "計測なし"}
                           {es.ep.allDone && " ✓"}
-                          {es.secs > 0 && <span style={{ fontSize: 9, color: "#C8C0B8", marginLeft: 3 }}>({es.timedCount}/{es.dc})</span>}
+                          {es.secs > 0 && <span style={{ fontSize: 9, color: "#4A4A60", marginLeft: 3 }}>({es.timedCount}/{es.dc})</span>}
                         </span>
                       </div>
                       {es.secs > 0 ? (
@@ -1257,7 +1277,7 @@ function PuwanFactory() {
                           <div style={{ height: "100%", width: `${es.dc / es.dt * 100}%`, background: "#2A2A38", borderRadius: 4 }} />
                         </div>
                       )}
-                      <div style={{ fontSize: 9, color: "#C8C0B8", marginTop: 2 }}>{es.dc}/{es.dt}タスク完了</div>
+                      <div style={{ fontSize: 9, color: "#4A4A60", marginTop: 2 }}>{es.dc}/{es.dt}タスク完了</div>
                     </div>
                   );
                 })}
@@ -1282,8 +1302,8 @@ function PuwanFactory() {
                   return (
                     <div key={ach.id} style={{
                       padding: "8px 10px", borderRadius: 10,
-                      background: unlocked ? "#FFF9F0" : "#F8F5F2",
-                      border: unlocked ? "1.5px solid #F5D5A0" : "1.5px solid #2A2A38",
+                      background: unlocked ? "#F5D5A015" : "#18181F",
+                      border: unlocked ? "1.5px solid #F5D5A044" : "1.5px solid #2A2A38",
                       opacity: unlocked ? 1 : 0.5,
                     }}>
                       <div style={{ fontSize: 18, marginBottom: 2 }}>{ach.icon}</div>
@@ -1322,10 +1342,10 @@ function PuwanFactory() {
         <div style={{
           position: "fixed", top: celebration ? 110 : 60, left: "50%", transform: "translateX(-50%)",
           zIndex: 160, pointerEvents: "none",
-          background: "linear-gradient(135deg,#FFF9F0,#FFF)",
+          background: "linear-gradient(135deg,#2A2A38,#1E1E28)",
           borderRadius: 14, padding: "10px 20px",
-          boxShadow: "0 4px 20px rgba(245,213,160,.3)",
-          border: "2px solid #F5D5A0",
+          boxShadow: "0 4px 20px rgba(245,213,160,.15)",
+          border: "2px solid #F5D5A066",
           display: "flex", alignItems: "center", gap: 10,
           animation: "toastIn .3s ease both",
           maxWidth: "90%",
