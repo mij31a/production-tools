@@ -87,6 +87,24 @@ const STEPS = [
   { id: "plot", label: "台本" },
 ];
 
+// Production status (mirrors factory.html logic)
+const PROD_STATUSES = [
+  { id: "none", label: "未着手", color: C.dim },
+  { id: "wip", label: "作画中", color: "#F2A7B0" },
+  { id: "art_done", label: "作画完了", color: C.purple },
+];
+const prodMap = {}; PROD_STATUSES.forEach(s => { prodMap[s.id] = s; });
+function deriveProdStatus(ep) {
+  if (ep.allDone) return "art_done";
+  const done = ep.done || {};
+  if (Object.values(done).some(v => v)) return "wip";
+  return "none";
+}
+function ProdStatusPill({ status }) {
+  const s = prodMap[status] || prodMap.none;
+  return <span style={{ background: s.color + "20", color: s.color, border: "1px solid " + s.color + "44", borderRadius: 6, padding: "2px 8px", fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>{s.label}</span>;
+}
+
 const CADENCES = [
   { id: "daily", label: "毎日", days: 1 }, { id: "every2", label: "2日に1回", days: 2 },
   { id: "every3", label: "3日に1回", days: 3 }, { id: "weekly", label: "週1回", days: 7 },
@@ -1067,7 +1085,7 @@ function MangaDashboard() {
               })}
               {columns.includes("uniqueId") && (() => { const active = sortKey === "uniqueId"; return <th onClick={() => cycleSort("uniqueId")} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: active ? C.accent : C.dim, borderBottom: "1px solid " + C.border, cursor: "pointer", userSelect: "none" }}>ID{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>; })()}
               {columns.includes("typeNum") && (() => { const active = sortKey === "typeNum"; return <th onClick={() => cycleSort("typeNum")} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: active ? C.accent : C.sub, borderBottom: "1px solid " + C.border, cursor: "pointer", userSelect: "none" }}>話数{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>; })()}
-              {[{ label: "ステータス", key: "status" }, { label: "X配信日", key: "date" }].map(h => {
+              {[{ label: "制作", key: "prod" }, { label: "配信", key: "status" }, { label: "X配信日", key: "date" }].map(h => {
                 const active = sortKey === h.key;
                 return <th key={h.label} onClick={() => cycleSort(h.key)} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: active ? C.accent : C.sub, borderBottom: "1px solid " + C.border, cursor: "pointer", userSelect: "none" }}>{h.label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>;
               })}
@@ -1092,6 +1110,7 @@ function MangaDashboard() {
                   </td>
                   {columns.includes("uniqueId") && <td style={{ ...cellS, fontSize: 10, color: C.dim, fontFamily: "monospace" }}>{ep.id}</td>}
                   {columns.includes("typeNum") && <td style={{ ...cellS, fontSize: 11, color: (ptMap[ep.postType] || ptMap.manga).color }}>{typeNumLabel(ep)}</td>}
+                  <td style={cellS}><ProdStatusPill status={deriveProdStatus(ep)} /></td>
                   <td style={cellS}><StatusPill status={status} /></td>
                   <td style={{ ...cellS, fontSize: 12, color: C.sub }}>{fmtDate(ep.postDate)}</td>
                   {SNS_LIST.map(sns => <td key={sns.id} style={cellS} onClick={e => e.stopPropagation()}>

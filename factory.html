@@ -55,9 +55,8 @@ const { useState, useEffect, useCallback, useRef } = React;
 // ─── Phase definitions ───
 const PHASES = [
   { id: "sketch", label: "下書き", icon: "✏️", unit: "batch", desc: "全ページ一気に" },
-  { id: "ink", label: "ペン入れ", icon: "🖊️", unit: "batch", desc: "全ページ一気に" },
-  { id: "color_char", label: "キャラ塗り", icon: "🎨", unit: "panel", desc: "1コマずつ" },
-  { id: "color_bg", label: "背景塗り", icon: "🏠", unit: "panel", desc: "1コマずつ" },
+  { id: "ink", label: "ペン入れ", icon: "🖊️", unit: "panel", desc: "1コマずつ" },
+  { id: "color", label: "塗り", icon: "🎨", unit: "panel", desc: "1コマずつ" },
   { id: "finish", label: "仕上げ", icon: "✨", unit: "panel", desc: "1コマずつ" },
 ];
 
@@ -292,6 +291,7 @@ function PuwanFactory() {
   const [addingEp, setAddingEp] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newPanelCount, setNewPanelCount] = useState(7);
+  const [newPostType, setNewPostType] = useState("manga");
   const [editingEp, setEditingEp] = useState(null);
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState("");
@@ -302,6 +302,7 @@ function PuwanFactory() {
   const [showAchievements, setShowAchievements] = useState(false);
   const [sortAsc, setSortAsc] = useState(true);
   const [showOnlyCompleted, setShowOnlyCompleted] = useState(false);
+  const [reorderMode, setReorderMode] = useState(false);
   const [newAchievement, setNewAchievement] = useState(null); // toast
   const [tab, setTab] = useState("work"); // "work" | "stats"
   const [showSettings, setShowSettings] = useState(false);
@@ -603,11 +604,20 @@ function PuwanFactory() {
     if (!newTitle.trim()) return;
     const id = "ep" + Date.now();
     const panels = Array.from({ length: newPanelCount }, (_, i) => ({ id: "c" + (i + 1), label: "C" + (i + 1) }));
-    save({ ...data, episodes: [...data.episodes, { id, title: newTitle.trim(), panels, done: {}, seconds: {}, allDone: false, steps: {}, snsState: {}, captions: {}, snsMetrics: {}, postDate: "", postType: "manga", postUrls: {} }] });
-    setNewTitle(""); setNewPanelCount(7); setAddingEp(false);
+    save({ ...data, episodes: [...data.episodes, { id, title: newTitle.trim(), panels, done: {}, seconds: {}, allDone: false, steps: {}, snsState: {}, captions: {}, snsMetrics: {}, postDate: "", postType: newPostType, postUrls: {} }] });
+    setNewTitle(""); setNewPanelCount(7); setNewPostType("manga"); setAddingEp(false);
   }
 
   function updateEp(epId, updates) { save({ ...data, episodes: data.episodes.map(e => e.id === epId ? { ...e, ...updates } : e) }); }
+  function moveEp(epId, dir) {
+    const eps = [...data.episodes];
+    const idx = eps.findIndex(e => e.id === epId);
+    if (idx < 0) return;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= eps.length) return;
+    [eps[idx], eps[newIdx]] = [eps[newIdx], eps[idx]];
+    save({ ...data, episodes: eps });
+  }
   function deleteEp(epId) { save({ ...data, episodes: data.episodes.filter(e => e.id !== epId) }); if (activeEp === epId) setActiveEp(null); }
 
   function renamePanelLabel(epId, panelId, label) {
@@ -957,19 +967,92 @@ function PuwanFactory() {
           <div style={{ display: "flex", gap: 6, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
             <button style={{ padding: "8px 16px", fontSize: 12, flex: "none", borderRadius: 10, border: "1.5px solid #FF6B9D44", background: "#FF6B9D18", color: "#FF6B9D", fontWeight: 700, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" }} onClick={() => setAddingEp(true)}>＋ 新規エピソード</button>
             <div style={{ flex: 1 }} />
-            <button style={{ ...S.ghost, fontSize: 10, padding: "5px 10px" }} onClick={() => setSortAsc(!sortAsc)}>
+            <button style={{ ...S.ghost, fontSize: 10, padding: "5px 10px", color: reorderMode ? "#F7C948" : "#7E7E96", borderColor: reorderMode ? "#F7C94844" : "#2A2A38" }} onClick={() => setReorderMode(!reorderMode)}>
+              {reorderMode ? "✓ 並び替え中" : "↕ 並び替え"}
+            </button>
+            {!reorderMode && <button style={{ ...S.ghost, fontSize: 10, padding: "5px 10px" }} onClick={() => setSortAsc(!sortAsc)}>
               {sortAsc ? "▲ 昇順" : "▼ 降順"}
-            </button>
-            <button style={{ ...S.ghost, fontSize: 10, padding: "5px 10px", color: showOnlyCompleted ? "#5DE8A0" : "#7E7E96", borderColor: showOnlyCompleted ? "#5DE8A044" : "#2A2A38" }} onClick={() => setShowOnlyCompleted(!showOnlyCompleted)}>
+            </button>}
+            {!reorderMode && <button style={{ ...S.ghost, fontSize: 10, padding: "5px 10px", color: showOnlyCompleted ? "#5DE8A0" : "#7E7E96", borderColor: showOnlyCompleted ? "#5DE8A044" : "#2A2A38" }} onClick={() => setShowOnlyCompleted(!showOnlyCompleted)}>
               {showOnlyCompleted ? "✓ 完了を表示中" : "完了を表示"}
-            </button>
+            </button>}
           </div>
 
           {/* Hidden count notice */}
+          {addingEp && (
+            <div style={{ background: "#1E1E28", borderRadius: 14, padding: "16px 14px", boxShadow: "0 1px 4px rgba(0,0,0,.04)", marginBottom: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>📦 新エピソード追加</div>
+              <div style={{ marginBottom: 14, padding: "12px", borderRadius: 10, background: "#18181F", border: "1.5px dashed #2A2A38" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#C4C4D4", marginBottom: 6 }}>📄 台本から読み込み</div>
+                <div style={{ fontSize: 10, color: "#7E7E96", marginBottom: 8 }}>タイトルとコマ数（【C1】【C2】…）を自動検出します</div>
+                {!showPaste ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <label style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", borderRadius: 8, background: "#1E1E28", border: "1.5px solid #2A2A38", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#C4C4D4" }}>
+                        📂 ファイルを選択
+                        <input type="file" accept=".md,.txt,.markdown,text/*" onChange={handleFileImport} style={{ display: "none" }} />
+                      </label>
+                      <button style={{ flex: 1, padding: "10px 14px", borderRadius: 8, background: "#1E1E28", border: "1.5px solid #2A2A38", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#C4C4D4", fontFamily: "'M PLUS Rounded 1c',sans-serif" }}
+                        onClick={() => setShowPaste(true)}>📝 テキストを貼り付け</button>
+                    </div>
+                    <div style={{ fontSize: 9, color: "#4A4A60", textAlign: "center" }}>Google Driveのファイルもスマホのファイル選択から開けます</div>
+                  </div>
+                ) : (
+                  <div>
+                    <textarea style={{ width: "100%", minHeight: 120, padding: "10px 12px", borderRadius: 10, border: "1.5px solid #2A2A38", fontSize: 12, color: "#E4E4EE", background: "#1E1E28", resize: "vertical", lineHeight: 1.5, fontFamily: "'M PLUS Rounded 1c',sans-serif" }}
+                      placeholder={"台本のテキストをここに貼り付けてね\n\n例:\n# 台本：「届くといいな」\n### ▼ PAGE 1（3コマ）\n**【C1】大ゴマ（上段）**\n**【C2】中ゴマ（下段右）**\n..."}
+                      value={pasteText} onChange={e => setPasteText(e.target.value)} />
+                    {pasteText.length > 10 && (() => {
+                      const preview = parseScript(pasteText);
+                      return (
+                        <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 8, background: "#1E1E28", border: "1px solid #2A2A38" }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#C4C4D4", marginBottom: 4 }}>検出結果プレビュー</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: preview.title ? "#E4E4EE" : "#D4626A" }}>{preview.title || "（タイトル未検出）"}</div>
+                          <div style={{ fontSize: 11, color: "#7E7E96", marginTop: 2 }}>{preview.panels.length > 0 ? `${preview.panels.length}コマ検出: ${preview.panels.map(p => p.label).join(", ")}` : "コマが検出できませんでした"}</div>
+                        </div>
+                      );
+                    })()}
+                    <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                      <button style={S.btnPri} onClick={() => { if (pasteText.trim()) { importScript(pasteText); setPasteText(""); setShowPaste(false); } }}>読み込む</button>
+                      <button style={S.ghost} onClick={() => { setShowPaste(false); setPasteText(""); }}>戻る</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: "#4A4A60", fontWeight: 600, marginBottom: 8, textAlign: "center" }}>または手動で追加</div>
+              <input style={S.input} placeholder="タイトル" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+              <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "#7E7E96", fontWeight: 600 }}>
+                  タイプ
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {POST_TYPES.map(t => {
+                      const active = newPostType === t.id;
+                      return <button key={t.id} onClick={() => setNewPostType(t.id)}
+                        style={{ background: active ? t.color + "22" : "transparent", color: active ? t.color : "#4A4A60", border: "1px solid " + (active ? t.color + "44" : "#2A2A38"), borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontFamily: "'M PLUS Rounded 1c',sans-serif", display: "flex", alignItems: "center", gap: 4 }}>
+                        <span>{t.icon}</span><span>{t.label}</span>
+                      </button>;
+                    })}
+                  </div>
+                </label>
+                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "#7E7E96", fontWeight: 600 }}>
+                  コマ数
+                  <select style={S.sel} value={newPanelCount} onChange={e => setNewPanelCount(+e.target.value)}>
+                    {[3, 4, 5, 6, 7, 8, 9, 10, 12].map(n => <option key={n} value={n}>{n}コマ</option>)}
+                  </select>
+                </label>
+              </div>
+              <div style={{ fontSize: 10, color: "#4A4A60", marginBottom: 10 }}>※ 工程（下書き〜仕上げ）は自動生成。コマ名は後から編集可</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={S.btnPri} onClick={addEpisode}>追加する</button>
+                <button style={S.ghost} onClick={() => { setAddingEp(false); setShowPaste(false); setPasteText(""); }}>キャンセル</button>
+              </div>
+            </div>
+          )}
+
           {(() => {
             let displayEps = episodes.map((ep, i) => ({ ...ep, _origIndex: i }));
-            if (showOnlyCompleted) displayEps = displayEps.filter(e => e.allDone);
-            if (!sortAsc) displayEps = [...displayEps].reverse();
+            if (!reorderMode && showOnlyCompleted) displayEps = displayEps.filter(e => e.allDone);
+            if (!reorderMode && !sortAsc) displayEps = [...displayEps].reverse();
             return displayEps;
           })().map((ep, ei) => {
             const { done: dc, total: dt } = countAllDone(ep);
@@ -987,15 +1070,21 @@ function PuwanFactory() {
             const pt = ptMap[ep.postType] || ptMap.manga;
 
             return (
-              <div key={ep.id} style={{ ...S.epCard, animation: `slideIn .25s ease ${ei * .04}s both` }}>
-                <div style={S.epHead} onClick={() => setActiveEp(isOpen ? null : ep.id)}>
+              <div key={ep.id} style={{ ...S.epCard, animation: reorderMode ? "none" : `slideIn .25s ease ${ei * .04}s both`, border: reorderMode ? "1px solid #F7C94833" : "none" }}>
+                <div style={S.epHead} onClick={() => { if (!reorderMode) setActiveEp(isOpen ? null : ep.id); }}>
+                  {reorderMode && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2, marginRight: 6 }}>
+                      <button onClick={e => { e.stopPropagation(); moveEp(ep.id, -1); }} style={{ width: 24, height: 20, borderRadius: 4, border: "1px solid #2A2A38", background: "#18181F", color: "#7E7E96", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>▲</button>
+                      <button onClick={e => { e.stopPropagation(); moveEp(ep.id, 1); }} style={{ width: 24, height: 20, borderRadius: 4, border: "1px solid #2A2A38", background: "#18181F", color: "#7E7E96", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>▼</button>
+                    </div>
+                  )}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
                     <div style={{ ...S.epIco, background: pt.color + "15" }}>
                       <span style={{ fontSize: 16 }}>{pt.icon}</span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                        <span style={{ fontSize: 10, color: "#4A4A60", fontWeight: 700, fontFamily: "'Share Tech Mono',monospace" }}>#{ei + 1}</span>
+                        <span style={{ fontSize: 10, color: "#4A4A60", fontWeight: 700, fontFamily: "'Share Tech Mono',monospace" }}>#{ep._origIndex + 1}</span>
                         <span style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ep.title}</span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -1008,7 +1097,7 @@ function PuwanFactory() {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                     <span style={{ fontSize: 13, fontWeight: 800, fontFamily: "'Share Tech Mono',monospace", color: ep.allDone ? "#5DE8A0" : pct > 0 ? "#F2A7B0" : "#4A4A60" }}>{pct}%</span>
-                    <span style={{ fontSize: 12, color: "#4A4A60", transform: isOpen ? "rotate(180deg)" : "none", transition: ".2s" }}>▼</span>
+                    {!reorderMode && <span style={{ fontSize: 12, color: "#4A4A60", transform: isOpen ? "rotate(180deg)" : "none", transition: ".2s" }}>▼</span>}
                   </div>
                 </div>
                 <div style={{ height: 3, background: "#2A2A38", margin: "0 14px" }}><div style={{ height: "100%", width: `${pct}%`, background: ep.allDone ? "#5DE8A060" : sts.color + "88", borderRadius: 2, transition: "width .5s" }} /></div>
@@ -1036,7 +1125,7 @@ function PuwanFactory() {
                             <span style={{ fontSize: 11, fontFamily: "'Share Tech Mono',monospace", color: allPh ? "#5DE8A0" : "#4A4A60" }}>{prog.done}/{prog.total}</span>
                           </div>
                           <div style={{ height: 4, background: "#2A2A38", borderRadius: 2, overflow: "hidden", marginBottom: 6 }}>
-                            <div style={{ height: "100%", borderRadius: 2, transition: "width .4s", width: `${phPct}%`, background: allPh ? "#5DE8A060" : ph.id.includes("color") ? "#5EB5F7" : "#F2A7B0" }} />
+                            <div style={{ height: "100%", borderRadius: 2, transition: "width .4s", width: `${phPct}%`, background: allPh ? "#5DE8A060" : ph.id === "color" ? "#5EB5F7" : "#F2A7B0" }} />
                           </div>
 
                           {ph.unit === "batch" && (
@@ -1066,7 +1155,7 @@ function PuwanFactory() {
                                 const isDone = !!ep.done[tKey];
                                 const sec = ep.seconds[tKey] || 0;
 
-                                if (isEdit && ph.id === "color_char") {
+                                if (isEdit && ph.id === "color") {
                                   return (
                                     <div key={panel.id} style={{ display: "flex", gap: 4, marginBottom: 4 }}>
                                       <input style={S.editIn} value={panel.label} onChange={e => renamePanelLabel(ep.id, panel.id, e.target.value)} onClick={e => e.stopPropagation()} />
@@ -1091,7 +1180,7 @@ function PuwanFactory() {
                                   </div>
                                 );
                               })}
-                              {isEdit && ph.id === "color_char" && (
+                              {isEdit && ph.id === "color" && (
                                 <button style={{ padding: "6px 10px", borderRadius: 8, border: "1.5px dashed #2A2A38", background: "transparent", color: "#4A4A60", fontSize: 11, cursor: "pointer" }}
                                   onClick={e => { e.stopPropagation(); addPanel(ep.id); }}>+ コマ追加</button>
                               )}
@@ -1138,87 +1227,6 @@ function PuwanFactory() {
             );
           })}
 
-          {addingEp && (
-            <div style={{ background: "#1E1E28", borderRadius: 14, padding: "16px 14px", boxShadow: "0 1px 4px rgba(0,0,0,.04)", marginBottom: 10 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>📦 新エピソード追加</div>
-
-              {/* ── Import from script ── */}
-              <div style={{ marginBottom: 14, padding: "12px", borderRadius: 10, background: "#18181F", border: "1.5px dashed #2A2A38" }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#C4C4D4", marginBottom: 6 }}>📄 台本から読み込み</div>
-                <div style={{ fontSize: 10, color: "#7E7E96", marginBottom: 8 }}>タイトルとコマ数（【C1】【C2】…）を自動検出します</div>
-
-                {!showPaste ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <label style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", borderRadius: 8, background: "#1E1E28", border: "1.5px solid #2A2A38", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#C4C4D4" }}>
-                        📂 ファイルを選択
-                        <input type="file" accept=".md,.txt,.markdown,text/*" onChange={handleFileImport} style={{ display: "none" }} />
-                      </label>
-                      <button style={{ flex: 1, padding: "10px 14px", borderRadius: 8, background: "#1E1E28", border: "1.5px solid #2A2A38", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#C4C4D4", fontFamily: "'M PLUS Rounded 1c',sans-serif" }}
-                        onClick={() => setShowPaste(true)}>
-                        📝 テキストを貼り付け
-                      </button>
-                    </div>
-                    <div style={{ fontSize: 9, color: "#4A4A60", textAlign: "center" }}>Google Driveのファイルもスマホのファイル選択から開けます</div>
-                  </div>
-                ) : (
-                  <div>
-                    <textarea
-                      style={{
-                        width: "100%", minHeight: 120, padding: "10px 12px", borderRadius: 10,
-                        border: "1.5px solid #2A2A38", fontSize: 12, color: "#E4E4EE",
-                        background: "#1E1E28", resize: "vertical", lineHeight: 1.5,
-                        fontFamily: "'M PLUS Rounded 1c',sans-serif",
-                      }}
-                      placeholder={"台本のテキストをここに貼り付けてね\n\n例:\n# 台本：「届くといいな」\n### ▼ PAGE 1（3コマ）\n**【C1】大ゴマ（上段）**\n**【C2】中ゴマ（下段右）**\n..."}
-                      value={pasteText}
-                      onChange={e => setPasteText(e.target.value)}
-                    />
-                    {pasteText.length > 10 && (() => {
-                      const preview = parseScript(pasteText);
-                      return (
-                        <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 8, background: "#1E1E28", border: "1px solid #2A2A38" }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "#C4C4D4", marginBottom: 4 }}>検出結果プレビュー</div>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: preview.title ? "#E4E4EE" : "#D4626A" }}>
-                            {preview.title || "（タイトル未検出）"}
-                          </div>
-                          <div style={{ fontSize: 11, color: "#7E7E96", marginTop: 2 }}>
-                            {preview.panels.length > 0
-                              ? `${preview.panels.length}コマ検出: ${preview.panels.map(p => p.label).join(", ")}`
-                              : "コマが検出できませんでした"}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                    <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                      <button style={S.btnPri}
-                        onClick={() => { if (pasteText.trim()) { importScript(pasteText); setPasteText(""); setShowPaste(false); } }}>
-                        読み込む
-                      </button>
-                      <button style={S.ghost} onClick={() => { setShowPaste(false); setPasteText(""); }}>戻る</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* ── Or manual add ── */}
-              <div style={{ fontSize: 11, color: "#4A4A60", fontWeight: 600, marginBottom: 8, textAlign: "center" }}>または手動で追加</div>
-              <input style={S.input} placeholder="タイトル" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
-              <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "#7E7E96", fontWeight: 600 }}>
-                  コマ数
-                  <select style={S.sel} value={newPanelCount} onChange={e => setNewPanelCount(+e.target.value)}>
-                    {[3, 4, 5, 6, 7, 8, 9, 10, 12].map(n => <option key={n} value={n}>{n}コマ</option>)}
-                  </select>
-                </label>
-              </div>
-              <div style={{ fontSize: 10, color: "#4A4A60", marginBottom: 10 }}>※ 工程（下書き〜仕上げ）は自動生成。コマ名は後から編集可</div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button style={S.btnPri} onClick={addEpisode}>追加する</button>
-                <button style={S.ghost} onClick={() => { setAddingEp(false); setShowPaste(false); setPasteText(""); }}>キャンセル</button>
-              </div>
-            </div>
-          )}
 
           <div style={{ height: 32 }} />
         </div>
@@ -1346,7 +1354,7 @@ function PuwanFactory() {
                         <div style={{ height: 8, background: "#2A2A38", borderRadius: 4, overflow: "hidden", display: "flex" }}>
                           {es.phaseBreakdown.map((pb, j) => {
                             const w = es.secs > 0 ? (pb.seconds / es.secs * 100) : 0;
-                            const colors = { "✏️ 下書き": "#F2A7B0", "🖊️ ペン入れ": "#A78BFA", "🎨 キャラ塗り": "#5EB5F7", "🏠 背景塗り": "#87C4B4", "✨ 仕上げ": "#5DE8A060" };
+                            const colors = { "✏️ 下書き": "#F2A7B0", "🖊️ ペン入れ": "#A78BFA", "🎨 塗り": "#5EB5F7", "✨ 仕上げ": "#5DE8A060" };
                             return <div key={j} style={{ height: "100%", width: `${w}%`, background: colors[pb.label] || "#2A2A38", transition: "width .4s" }} />;
                           })}
                         </div>
@@ -1361,7 +1369,7 @@ function PuwanFactory() {
                 })}
                 {/* Legend */}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-                  {[{ l: "下書き", c: "#F2A7B0" }, { l: "ペン入れ", c: "#A78BFA" }, { l: "キャラ塗り", c: "#5EB5F7" }, { l: "背景塗り", c: "#87C4B4" }, { l: "仕上げ", c: "#5DE8A060" }].map(x => (
+                  {[{ l: "下書き", c: "#F2A7B0" }, { l: "ペン入れ", c: "#A78BFA" }, { l: "塗り", c: "#5EB5F7" }, { l: "仕上げ", c: "#5DE8A060" }].map(x => (
                     <div key={x.l} style={{ display: "flex", alignItems: "center", gap: 3 }}>
                       <div style={{ width: 8, height: 8, borderRadius: 2, background: x.c }} />
                       <span style={{ fontSize: 9, color: "#7E7E96" }}>{x.l}</span>
