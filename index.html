@@ -278,32 +278,50 @@ function PuwanFactory() {
   const timerRef = useRef(null);
   const comboRef = useRef(null);
 
-  // Load from localStorage
+  // Load from localStorage, then auto-sync from GAS
   useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    function applyData(d) {
+      setData(d);
+      setTodayStats(d.todayStats?.date === today ? d.todayStats : { panels: 0, seconds: 0, date: today });
+      const lastActive = d.lastActiveDate;
+      if (lastActive) {
+        const daysSince = Math.round((new Date(today) - new Date(lastActive)) / 86400000);
+        if (daysSince >= 3) setPuwanMsg(rMsg("welcomeBack"));
+        else if (daysSince >= 1) setPuwanMsg(rMsg("welcomeNextDay"));
+        else setPuwanMsg(rMsg("idle"));
+      } else { setPuwanMsg(rMsg("idle")); }
+    }
+
+    // 1. Load local first (instant)
     try {
       const saved = storage.get(SK);
-      const today = new Date().toISOString().slice(0, 10);
-      if (saved && saved.episodes) {
-        setData(saved);
-        setTodayStats(saved.todayStats?.date === today ? saved.todayStats : { panels: 0, seconds: 0, date: today });
-        const lastActive = saved.lastActiveDate;
-        if (lastActive) {
-          const daysSince = Math.round((new Date(today) - new Date(lastActive)) / 86400000);
-          if (daysSince >= 3) setPuwanMsg(rMsg("welcomeBack"));
-          else if (daysSince >= 1) setPuwanMsg(rMsg("welcomeNextDay"));
-          else setPuwanMsg(rMsg("idle"));
-        } else { setPuwanMsg(rMsg("idle")); }
-      } else {
-        setData({ episodes: DEFAULT_EPS });
-        setTodayStats({ panels: 0, seconds: 0, date: today });
-        setPuwanMsg(rMsg("idle"));
-      }
+      if (saved && saved.episodes) { applyData(saved); }
+      else { setData({ episodes: DEFAULT_EPS }); setTodayStats({ panels: 0, seconds: 0, date: today }); setPuwanMsg(rMsg("idle")); }
     } catch {
-      setData({ episodes: DEFAULT_EPS });
-      setTodayStats({ panels: 0, seconds: 0, date: new Date().toISOString().slice(0, 10) });
-      setPuwanMsg(rMsg("idle"));
+      setData({ episodes: DEFAULT_EPS }); setTodayStats({ panels: 0, seconds: 0, date: today }); setPuwanMsg(rMsg("idle"));
     }
     setLoading(false);
+
+    // 2. Then try GAS in background (if URL set)
+    try {
+      const gasUrlStored = storage.get(GAS_URL_KEY);
+      if (gasUrlStored) {
+        gasGet(gasUrlStored).then(remote => {
+          if (remote && remote.episodes) {
+            // Use GAS data if it has more recent activity
+            const local = storage.get(SK);
+            const localDate = local?.lastActiveDate || "";
+            const remoteDate = remote.lastActiveDate || "";
+            if (remoteDate >= localDate || !local?.episodes) {
+              storage.set(SK, remote);
+              applyData(remote);
+            }
+          }
+        }).catch(() => {});
+      }
+    } catch {}
   }, []);
 
   // Save
