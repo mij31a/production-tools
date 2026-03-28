@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; overflow: hidden; background: #111116; }
+html, body { height: 100%; overflow: hidden; background: #111116; font-family: "Zen Kaku Gothic New", sans-serif; color: #E4E4EE; }
 
 .tab-bar {
   position: fixed;
@@ -25,7 +25,6 @@ html, body { height: 100%; overflow: hidden; background: #111116; }
   padding: 0 12px;
   gap: 6px;
   z-index: 9999;
-  font-family: "Zen Kaku Gothic New", sans-serif;
 }
 
 .tab-btn {
@@ -60,20 +59,68 @@ html, body { height: 100%; overflow: hidden; background: #111116; }
   color: #E4E4EE;
 }
 
+.settings-btn {
+  margin-left: auto;
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  border: 1px solid #2A2A38;
+  background: #18181F;
+  color: #7E7E96;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+}
+.settings-btn:hover, .settings-btn.active {
+  background: #F2A7B020;
+  color: #F2A7B0;
+  border-color: #F2A7B044;
+}
+
+.settings-panel {
+  display: none;
+  position: fixed;
+  top: 48px; right: 0;
+  width: 320px;
+  max-width: 90vw;
+  background: #18181F;
+  border-left: 1px solid #2A2A38;
+  border-bottom: 1px solid #2A2A38;
+  border-radius: 0 0 0 14px;
+  padding: 16px;
+  z-index: 9998;
+  box-shadow: -4px 4px 20px rgba(0,0,0,.4);
+}
+.settings-panel.open { display: block; }
+
+.s-label { font-size: 11px; font-weight: 600; color: #7E7E96; margin-bottom: 4px; }
+.s-input {
+  width: 100%; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid #2A2A38; background: #111116;
+  color: #E4E4EE; font-size: 11px; font-family: inherit;
+  margin-bottom: 8px; outline: none;
+}
+.s-btn {
+  padding: 6px 14px; border-radius: 8px;
+  border: 1px solid #2A2A38; background: transparent;
+  color: #7E7E96; font-size: 11px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+  transition: all .15s;
+}
+.s-btn:hover { background: #1E1E28; color: #E4E4EE; }
+.s-btn.danger { color: #D4626A; border-color: #D4626A44; }
+.s-status { font-size: 10px; margin-top: 4px; }
+
 .frames {
   position: fixed;
   top: 48px; left: 0; right: 0; bottom: 0;
 }
-
 iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
-  display: none;
+  width: 100%; height: 100%; border: none; display: none;
 }
-iframe.visible {
-  display: block;
-}
+iframe.visible { display: block; }
 </style>
 </head>
 <body>
@@ -85,6 +132,25 @@ iframe.visible {
   <button class="tab-btn" id="btn-dashboard" onclick="switchTab('dashboard')">
     📊 <span>配信管理</span>
   </button>
+  <button class="settings-btn" id="btn-settings" onclick="toggleSettings()">⚙</button>
+</div>
+
+<div class="settings-panel" id="settings-panel">
+  <div style="font-size: 14px; font-weight: 700; margin-bottom: 12px;">⚙ 設定</div>
+
+  <div class="s-label">☁️ GAS同期URL</div>
+  <input class="s-input" id="gas-url" placeholder="GAS WebアプリURL" />
+
+  <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;">
+    <button class="s-btn" onclick="gasPull()">↓ 取得</button>
+    <button class="s-btn" onclick="gasPush()">↑ 送信</button>
+    <button class="s-btn" onclick="exportData()">💾 書出し</button>
+  </div>
+  <div id="gas-status" class="s-status"></div>
+
+  <div style="border-top: 1px solid #2A2A38; margin: 12px 0; padding-top: 12px;">
+    <button class="s-btn danger" onclick="resetAll()" style="width: 100%;">データリセット</button>
+  </div>
 </div>
 
 <div class="frames">
@@ -93,20 +159,95 @@ iframe.visible {
 </div>
 
 <script>
+  var SK = 'puwan-production';
+  var GAS_URL_KEY = 'puwan-production-gas-url';
   var current = 'factory';
+
+  // Init GAS URL from localStorage
+  (function() {
+    var url = localStorage.getItem(GAS_URL_KEY) || '';
+    document.getElementById('gas-url').value = url;
+    // Save on change
+    document.getElementById('gas-url').addEventListener('input', function() {
+      localStorage.setItem(GAS_URL_KEY, this.value);
+    });
+  })();
 
   function switchTab(tab) {
     if (tab === current) return;
     current = tab;
-
     document.getElementById('frame-factory').className = tab === 'factory' ? 'visible' : '';
     document.getElementById('frame-dashboard').className = tab === 'dashboard' ? 'visible' : '';
+    document.getElementById('btn-factory').className = 'tab-btn' + (tab === 'factory' ? ' active-factory' : '');
+    document.getElementById('btn-dashboard').className = 'tab-btn' + (tab === 'dashboard' ? ' active-dashboard' : '');
+  }
 
-    var btnF = document.getElementById('btn-factory');
-    var btnD = document.getElementById('btn-dashboard');
-    btnF.className = 'tab-btn' + (tab === 'factory' ? ' active-factory' : '');
-    btnD.className = 'tab-btn' + (tab === 'dashboard' ? ' active-dashboard' : '');
+  function toggleSettings() {
+    var panel = document.getElementById('settings-panel');
+    var btn = document.getElementById('btn-settings');
+    var open = panel.classList.toggle('open');
+    btn.classList.toggle('active', open);
+  }
 
+  function setStatus(msg, ok) {
+    var el = document.getElementById('gas-status');
+    el.textContent = msg;
+    el.style.color = ok ? '#5DE8A0' : '#E88D67';
+    setTimeout(function() { el.textContent = ''; }, 3000);
+  }
+
+  function getGasUrl() {
+    return document.getElementById('gas-url').value.trim();
+  }
+
+  function gasPull() {
+    var url = getGasUrl();
+    if (!url) { setStatus('URLが未設定', false); return; }
+    setStatus('取得中...', true);
+    fetch(url, { redirect: 'follow' })
+      .then(function(r) { return r.json(); })
+      .then(function(json) {
+        if (json.success && json.data) {
+          localStorage.setItem(SK, JSON.stringify(json.data));
+          setStatus('取得完了！ページをリロードします', true);
+          setTimeout(function() { location.reload(); }, 500);
+        } else {
+          setStatus('リモートにデータなし', false);
+        }
+      })
+      .catch(function() { setStatus('取得失敗', false); });
+  }
+
+  function gasPush() {
+    var url = getGasUrl();
+    if (!url) { setStatus('URLが未設定', false); return; }
+    var data = localStorage.getItem(SK);
+    if (!data) { setStatus('ローカルにデータなし', false); return; }
+    setStatus('送信中...', true);
+    fetch(url, {
+      method: 'POST', redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'save', data: JSON.parse(data) })
+    })
+      .then(function() { setStatus('送信完了！', true); })
+      .catch(function() { setStatus('送信失敗', false); });
+  }
+
+  function exportData() {
+    var data = localStorage.getItem(SK);
+    if (!data) { setStatus('データなし', false); return; }
+    var blob = new Blob([data], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'puwan-production-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click();
+  }
+
+  function resetAll() {
+    if (confirm('全データをリセットしますか？この操作は取り消せません。')) {
+      localStorage.removeItem(SK);
+      location.reload();
+    }
   }
 </script>
 

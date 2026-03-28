@@ -23,8 +23,9 @@
 <script type="text/babel">
 
 // ─── Storage Layer (localStorage + GAS sync) ───
-const SK = "puwan-factory-v2";
-const GAS_URL_KEY = "puwan-factory-gas-url";
+const SK = "puwan-production";
+const SK_OLD_FACTORY = "puwan-factory-v2";
+const GAS_URL_KEY = "puwan-production-gas-url";
 
 const storage = {
   get(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } },
@@ -271,21 +272,57 @@ function PuwanFactory() {
   const [goalEndEpInput, setGoalEndEpInput] = useState(5);
   const [showAchievements, setShowAchievements] = useState(false);
   const [sortAsc, setSortAsc] = useState(true);
-  const [hideCompleted, setHideCompleted] = useState(false);
+  const [showOnlyCompleted, setShowOnlyCompleted] = useState(false);
   const [newAchievement, setNewAchievement] = useState(null); // toast
   const [tab, setTab] = useState("work"); // "work" | "stats"
   const [showSettings, setShowSettings] = useState(false);
-  const [gasUrl, setGasUrl] = useState(() => storage.get(GAS_URL_KEY) || "");
+  const [gasUrl, setGasUrl] = useState(() => storage.get(GAS_URL_KEY) || storage.get("puwan-factory-gas-url") || "");
   const [gasStatus, setGasStatus] = useState("");
   const [syncing, setSyncing] = useState(false);
   const timerRef = useRef(null);
   const comboRef = useRef(null);
 
-  // Load from localStorage
+  // Load from localStorage (with migration from old keys)
   useEffect(() => {
     try {
-      const saved = storage.get(SK);
+      let saved = storage.get(SK);
       const today = new Date().toISOString().slice(0, 10);
+
+      // Migration: merge old factory + old dashboard data into unified key
+      if (!saved) {
+        const oldFactory = storage.get(SK_OLD_FACTORY);
+        const oldDash = storage.get("manga-dash-v12") ? JSON.parse(localStorage.getItem("manga-dash-v12")) : null;
+
+        if (oldFactory && oldFactory.episodes) {
+          saved = { ...oldFactory };
+          // Merge dashboard episodes' SNS data into factory episodes by title match
+          if (oldDash && oldDash.episodes) {
+            saved.episodes = saved.episodes.map(fep => {
+              const dashEp = oldDash.episodes.find(de => de.title === fep.title);
+              if (dashEp) {
+                return { ...fep, postType: dashEp.postType, steps: dashEp.steps, postDate: dashEp.postDate, snsState: dashEp.snsState, captions: dashEp.captions, snsMetrics: dashEp.snsMetrics, storyDraft: dashEp.storyDraft || dashEp.story, postUrls: dashEp.postUrls, analyticsNote: dashEp.analyticsNote };
+              }
+              return fep;
+            });
+            // Add dashboard-only episodes not in factory
+            oldDash.episodes.forEach(de => {
+              if (!saved.episodes.find(e => e.title === de.title)) {
+                saved.episodes.push({ id: "ep" + Date.now() + Math.random().toString(36).slice(2, 6), title: de.title, panels: [], done: {}, seconds: {}, allDone: false, postType: de.postType, steps: de.steps, postDate: de.postDate, snsState: de.snsState, captions: de.captions, snsMetrics: de.snsMetrics, storyDraft: de.storyDraft || de.story, postUrls: de.postUrls, analyticsNote: de.analyticsNote });
+              }
+            });
+            // Carry over dashboard global fields
+            saved.nextId = oldDash.nextId || saved.episodes.length + 1;
+            saved.projectName = oldDash.projectName;
+            saved.defaultCadence = oldDash.defaultCadence;
+            saved.weeklyFollowers = oldDash.weeklyFollowers;
+            saved.weeklyReviews = oldDash.weeklyReviews;
+            saved.dismissedTasks = oldDash.dismissedTasks;
+          }
+          // Save to new unified key
+          storage.set(SK, saved);
+        }
+      }
+
       if (saved && saved.episodes) {
         setData(saved);
         setTodayStats(saved.todayStats?.date === today ? saved.todayStats : { panels: 0, seconds: 0, date: today });
@@ -307,6 +344,20 @@ function PuwanFactory() {
       setPuwanMsg(rMsg("idle"));
     }
     setLoading(false);
+  }, []);
+
+  // Cross-iframe sync: reload when the other tool saves
+  useEffect(() => {
+    function onStorage(e) {
+      if (e.key === SK && e.newValue) {
+        try {
+          const d = JSON.parse(e.newValue);
+          if (d && d.episodes) { setData(d); }
+        } catch {}
+      }
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   // Save
@@ -499,6 +550,7 @@ function PuwanFactory() {
       title: title || "無題",
       panels: panels.length > 0 ? panels : [{ id: "c1", label: "C1" }],
       done: {}, seconds: {}, allDone: false,
+      steps: {}, snsState: {}, captions: {}, snsMetrics: {}, postDate: "", postType: "manga", postUrls: {},
     };
     save({ ...data, episodes: [...data.episodes, ep] });
     setActiveEp(id);
@@ -522,7 +574,7 @@ function PuwanFactory() {
     if (!newTitle.trim()) return;
     const id = "ep" + Date.now();
     const panels = Array.from({ length: newPanelCount }, (_, i) => ({ id: "c" + (i + 1), label: "C" + (i + 1) }));
-    save({ ...data, episodes: [...data.episodes, { id, title: newTitle.trim(), panels, done: {}, seconds: {}, allDone: false }] });
+    save({ ...data, episodes: [...data.episodes, { id, title: newTitle.trim(), panels, done: {}, seconds: {}, allDone: false, steps: {}, snsState: {}, captions: {}, snsMetrics: {}, postDate: "", postType: "manga", postUrls: {} }] });
     setNewTitle(""); setNewPanelCount(7); setAddingEp(false);
   }
 
@@ -642,32 +694,8 @@ function PuwanFactory() {
           <div style={S.logo}>📦</div>
           <div><div style={S.hTitle}>制作管理</div><div style={S.hSub}>工程×コマで荷物を処理</div></div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {combo >= 2 && <div style={S.comboBadge}>🔥 {combo} COMBO</div>}
-          <button onClick={() => setShowSettings(!showSettings)} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #2A2A38", background: showSettings ? "#F2A7B020" : "#18181F", color: showSettings ? "#F2A7B0" : "#7E7E96", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>⚙</button>
-        </div>
+        {combo >= 2 && <div style={S.comboBadge}>🔥 {combo} COMBO</div>}
       </header>
-
-      {/* Settings Panel */}
-      {showSettings && (
-        <div style={{ margin: "0 16px 8px", background: "#1E1E28", borderRadius: 14, padding: "14px", boxShadow: "0 2px 8px rgba(0,0,0,.06)", border: "1px solid #2A2A38" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>⚙ 設定</div>
-
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#7E7E96", marginBottom: 4 }}>☁️ GAS同期</div>
-            <input style={{ ...S.input, fontSize: 11, marginBottom: 6 }} placeholder="GAS WebアプリURL" value={gasUrl} onChange={e => saveGasUrl(e.target.value)} />
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <button style={S.ghost} onClick={pullFromGas} disabled={syncing}>{syncing ? "..." : "↓ 取得"}</button>
-              <button style={S.ghost} onClick={pushToGas} disabled={syncing}>{syncing ? "..." : "↑ 送信"}</button>
-              <button style={S.ghost} onClick={() => { const j = JSON.stringify({ ...data, todayStats }, null, 2); const b = new Blob([j], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "factory-backup.json"; a.click(); }}>💾 書出し</button>
-            </div>
-            {gasStatus && <div style={{ fontSize: 10, color: gasStatus.includes("完了") ? "#5DE8A0" : "#E88D67", marginTop: 4 }}>{gasStatus}</div>}
-          </div>
-
-          <button style={{ ...S.ghost, color: "#D4626A", borderColor: "#D4626A44", fontSize: 10, width: "100%" }}
-            onClick={() => { if(confirm("全データをリセットしますか？")) { resetAll(); setShowSettings(false); } }}>データリセット</button>
-        </div>
-      )}
 
       {/* Puwan - removed per user request */}
 
@@ -897,27 +925,20 @@ function PuwanFactory() {
 
           {/* ─── Controls: Add + Sort + Hide ─── */}
           <div style={{ display: "flex", gap: 6, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <button style={{ ...S.btnPri, padding: "8px 16px", fontSize: 12, flex: "none" }} onClick={() => setAddingEp(true)}>＋ エピソード追加</button>
+            <button style={{ padding: "8px 16px", fontSize: 12, flex: "none", borderRadius: 10, border: "1.5px solid #FF6B9D44", background: "#FF6B9D18", color: "#FF6B9D", fontWeight: 700, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" }} onClick={() => setAddingEp(true)}>＋ 新規エピソード</button>
             <div style={{ flex: 1 }} />
             <button style={{ ...S.ghost, fontSize: 10, padding: "5px 10px" }} onClick={() => setSortAsc(!sortAsc)}>
               {sortAsc ? "▲ 昇順" : "▼ 降順"}
             </button>
-            <button style={{ ...S.ghost, fontSize: 10, padding: "5px 10px", color: hideCompleted ? "#5DE8A0" : "#7E7E96", borderColor: hideCompleted ? "#5DE8A044" : "#2A2A38" }} onClick={() => setHideCompleted(!hideCompleted)}>
-              {hideCompleted ? "✓ 完了非表示" : "完了も表示"}
+            <button style={{ ...S.ghost, fontSize: 10, padding: "5px 10px", color: showOnlyCompleted ? "#5DE8A0" : "#7E7E96", borderColor: showOnlyCompleted ? "#5DE8A044" : "#2A2A38" }} onClick={() => setShowOnlyCompleted(!showOnlyCompleted)}>
+              {showOnlyCompleted ? "✓ 完了を表示中" : "完了を表示"}
             </button>
           </div>
 
           {/* Hidden count notice */}
-          {hideCompleted && episodes.filter(e => e.allDone).length > 0 && (
-            <div style={{ fontSize: 11, color: "#4A4A60", textAlign: "center", marginBottom: 8, padding: "6px 10px", background: "#18181F", borderRadius: 8 }}>
-              {episodes.filter(e => e.allDone).length}話が非表示中
-              <button style={{ background: "none", border: "none", color: "#5DE8A0", fontSize: 11, cursor: "pointer", marginLeft: 6, fontFamily: "'M PLUS Rounded 1c',sans-serif", fontWeight: 600 }} onClick={() => setHideCompleted(false)}>再表示</button>
-            </div>
-          )}
-
           {(() => {
             let displayEps = episodes.map((ep, i) => ({ ...ep, _origIndex: i }));
-            if (hideCompleted) displayEps = displayEps.filter(e => !e.allDone);
+            if (showOnlyCompleted) displayEps = displayEps.filter(e => e.allDone);
             if (!sortAsc) displayEps = [...displayEps].reverse();
             return displayEps;
           })().map((ep, ei) => {
@@ -1140,9 +1161,7 @@ function PuwanFactory() {
             </div>
           )}
 
-          <div style={{ textAlign: "center", padding: "16px 0 32px" }}>
-            <button style={{ padding: "6px 16px", borderRadius: 20, border: "1px solid #2A2A38", background: "transparent", color: "#4A4A60", fontSize: 10, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" }} onClick={resetAll}>データリセット</button>
-          </div>
+          <div style={{ height: 32 }} />
         </div>
       )}
 

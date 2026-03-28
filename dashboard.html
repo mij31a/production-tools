@@ -26,7 +26,8 @@ window.storage = {
 <script type="text/babel">
 const { useState, useEffect, useCallback, useRef } = React;
 
-const SK = "manga-dash-v12";
+const SK = "puwan-production";
+const SK_OLD_DASH = "manga-dash-v12";
 const C = {
   bg: "#111116", surface: "#18181F", card: "#1E1E28", border: "#2A2A38",
   accent: "#FF6B9D", accentSoft: "#FF6B9D18", accentGlow: "#FF6B9D33",
@@ -127,7 +128,7 @@ const SNS_METRICS = {
 
 const INIT = { episodes: [], nextId: 1, projectName: "配信管理", defaultCadence: "daily", weeklyFollowers: [], weeklyReviews: [], dismissedTasks: [] };
 
-const GAS_URL_KEY = "manga-dash-gas-url";
+const GAS_URL_KEY = "puwan-production-gas-url";
 
 // --- GAS Sync (data read/write only) ---
 async function gasGet(url) {
@@ -824,15 +825,36 @@ function MangaDashboard() {
 
   useEffect(() => { function h(e) { if (settingsRef.current && !settingsRef.current.contains(e.target)) setShowSettings(false); } document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, []);
 
-  // Load: local first, then auto-fetch from GAS
+  // Load: local first (with migration from old keys), then auto-fetch from GAS
   useEffect(() => { (async () => {
-    // Load GAS URL
+    // Load GAS URL (try new key first, then old)
     let savedGasUrl = "";
-    try { const u = await window.storage.get(GAS_URL_KEY); if (u && u.value) { setGasUrl(u.value); savedGasUrl = u.value; } } catch(e) {}
-    // Load local data first (instant)
+    try { let u = await window.storage.get(GAS_URL_KEY); if (!u || !u.value) { u = await window.storage.get("manga-dash-gas-url"); } if (u && u.value) { setGasUrl(u.value); savedGasUrl = u.value; } } catch(e) {}
+    // Load local data (unified key first)
     try {
-      let r = await window.storage.get(SK); if (!r || !r.value) { r = await window.storage.get("manga-dash-v11"); }
-      if (r && r.value) setData(JSON.parse(r.value));
+      let r = await window.storage.get(SK);
+      if (r && r.value) {
+        const parsed = JSON.parse(r.value);
+        // Ensure dashboard INIT fields exist
+        setData({ ...INIT, ...parsed });
+      } else {
+        // Migration: try old dashboard key
+        let oldR = await window.storage.get(SK_OLD_DASH);
+        if (!oldR || !oldR.value) { oldR = await window.storage.get("manga-dash-v11"); }
+        if (oldR && oldR.value) {
+          const oldData = JSON.parse(oldR.value);
+          // Convert numeric IDs to string IDs for compatibility
+          if (oldData.episodes) {
+            oldData.episodes = oldData.episodes.map(ep => ({
+              ...ep,
+              id: typeof ep.id === "number" ? "ep_dash_" + ep.id : ep.id,
+            }));
+          }
+          setData({ ...INIT, ...oldData });
+          // Save to unified key
+          try { await window.storage.set(SK, JSON.stringify({ ...INIT, ...oldData })); } catch(e) {}
+        }
+      }
     } catch(e) {}
     setLoaded(true);
     // Auto-fetch from GAS (non-blocking, updates after local load)
@@ -840,12 +862,26 @@ function MangaDashboard() {
       try {
         const remote = await gasGet(savedGasUrl);
         if (remote && remote.episodes) {
-          setData(remote);
-          try { await window.storage.set(SK, JSON.stringify(remote)); } catch(e) {}
+          setData({ ...INIT, ...remote });
+          try { await window.storage.set(SK, JSON.stringify({ ...INIT, ...remote })); } catch(e) {}
         }
       } catch(e) { /* GAS unavailable — local data is fine */ }
     }
   })(); }, []);
+
+  // Cross-iframe sync: reload when factory saves
+  useEffect(() => {
+    function onStorage(e) {
+      if (e.key === SK && e.newValue) {
+        try {
+          const d = JSON.parse(e.newValue);
+          if (d && d.episodes) { setData({ ...INIT, ...d }); }
+        } catch {}
+      }
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   // Save: local + GAS (non-blocking)
   const save = useCallback(async d => {
@@ -924,10 +960,10 @@ function MangaDashboard() {
   // Display number = order by postDate
   const displayNumMap = {};
   [...eps].sort((a, b) => {
-    if (!a.postDate && !b.postDate) return a.id - b.id;
+    if (!a.postDate && !b.postDate) return String(a.id).localeCompare(String(b.id));
     if (!a.postDate) return 1;
     if (!b.postDate) return -1;
-    return a.postDate.localeCompare(b.postDate) || a.id - b.id;
+    return a.postDate.localeCompare(b.postDate) || String(a.id).localeCompare(String(b.id));
   }).forEach((ep, i) => { displayNumMap[ep.id] = i + 1; });
   function dn(ep) { return displayNumMap[ep.id] || "?"; }
 
@@ -935,10 +971,10 @@ function MangaDashboard() {
   const typeNumMap = {};
   const typeCounters = {};
   [...eps].sort((a, b) => {
-    if (!a.postDate && !b.postDate) return a.id - b.id;
+    if (!a.postDate && !b.postDate) return String(a.id).localeCompare(String(b.id));
     if (!a.postDate) return 1;
     if (!b.postDate) return -1;
-    return a.postDate.localeCompare(b.postDate) || a.id - b.id;
+    return a.postDate.localeCompare(b.postDate) || String(a.id).localeCompare(String(b.id));
   }).forEach(ep => {
     const t = ep.postType || "manga";
     typeCounters[t] = (typeCounters[t] || 0) + 1;
@@ -954,8 +990,9 @@ function MangaDashboard() {
   }
 
   function addEp(title, date, cadence) {
-    const ep = { id: data.nextId, title, postDate: date || "", steps: {}, snsState: {}, captions: {}, story: "", snsMetrics: {}, analyticsNote: "", postType: "manga", postUrls: {} };
-    save({ ...data, episodes: [...eps, ep], nextId: data.nextId + 1, defaultCadence: cadence }); setAdding(false);
+    const id = "ep" + Date.now();
+    const ep = { id, title, postDate: date || "", steps: {}, snsState: {}, captions: {}, story: "", snsMetrics: {}, analyticsNote: "", postType: "manga", postUrls: {}, panels: [], done: {}, seconds: {}, allDone: false };
+    save({ ...data, episodes: [...eps, ep], nextId: (data.nextId || eps.length) + 1, defaultCadence: cadence }); setAdding(false);
   }
   function upEp(id, u) { save({ ...data, episodes: eps.map(e => e.id === id ? { ...e, ...u } : e) }); }
   function delEp(id) { save({ ...data, episodes: eps.filter(e => e.id !== id) }); if (openId === id) setOpenId(null); }
@@ -1031,37 +1068,6 @@ function MangaDashboard() {
             <div style={{ fontSize: 10, color: C.sub }}>{s.l}</div>
           </div>
         )}
-        <div ref={settingsRef} style={{ position: "relative", display: "flex", alignItems: "center" }}>
-          <button onClick={() => setShowSettings(!showSettings)} style={{ background: C.surface, border: "1px solid " + C.border, borderRadius: 10, width: 42, height: 42, cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: C.sub }}>⚙</button>
-          {showSettings && <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: "100%", right: 0, zIndex: 100, marginTop: 6, background: C.card, border: "1px solid " + C.border, borderRadius: 12, padding: 14, minWidth: 260, boxShadow: "0 12px 40px rgba(0,0,0,.5)" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 10 }}>⚙ 設定</div>
-            {/* Backup */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: C.sub, marginBottom: 6 }}>💾 バックアップ</div>
-              <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-                <button onClick={exportData} style={{ ...btnS(C.green), fontSize: 11, padding: "6px 12px", flex: 1 }}>↓ JSONエクスポート</button>
-                <button onClick={() => importRef.current?.click()} style={{ ...btnS(C.blue), fontSize: 11, padding: "6px 12px", flex: 1 }}>↑ JSONインポート</button>
-                <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
-              </div>
-              <button onClick={copyDataToClipboard} style={{ ...ghostBtn, fontSize: 10, padding: "4px 10px", width: "100%" }}>📋 JSONをクリップボードにコピー</button>
-              <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>定期的にエクスポートしてバックアップしてください</div>
-            </div>
-            {/* GAS Sync */}
-            <div style={{ borderTop: "1px solid " + C.border, paddingTop: 10, marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: C.sub, marginBottom: 6 }}>☁ クラウド同期（GAS）</div>
-              <input value={gasUrl} onChange={e => saveGasUrl(e.target.value)} placeholder="GAS Web App URL" style={{ ...inputS, width: "100%", fontSize: 10, marginBottom: 6 }} />
-              <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
-                <button onClick={pullFromGas} disabled={syncing || !gasUrl} style={{ ...btnS(C.blue), fontSize: 10, padding: "5px 10px", flex: 1, opacity: (syncing || !gasUrl) ? .4 : 1 }}>↓ 取得</button>
-                <button onClick={pushToGas} disabled={syncing || !gasUrl} style={{ ...btnS(C.green), fontSize: 10, padding: "5px 10px", flex: 1, opacity: (syncing || !gasUrl) ? .4 : 1 }}>↑ 送信</button>
-              </div>
-              {gasStatus && <div style={{ fontSize: 10, color: gasStatus.includes("失敗") || gasStatus.includes("未設定") ? C.red : C.green }}>{gasStatus}</div>}
-              <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>保存時に自動送信。スマホで見るには「取得」で同期</div>
-            </div>
-            <div style={{ borderTop: "1px solid " + C.border, paddingTop: 10 }}>
-              <button onClick={() => { setConfirmReset(true); setShowSettings(false); }} style={{ background: "transparent", color: C.red, border: "none", padding: "6px 0", cursor: "pointer", fontSize: 12, fontFamily: "inherit", width: "100%", textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.opacity = .7} onMouseLeave={e => e.currentTarget.style.opacity = 1}>🗑️ データリセット</button>
-            </div>
-          </div>}
-        </div>
       </div>
     </header>
     <nav style={{ display: "flex", gap: 2, padding: "0 24px", background: C.surface, borderBottom: "1px solid " + C.border }}>
