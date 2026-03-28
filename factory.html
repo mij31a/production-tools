@@ -800,7 +800,9 @@ function PuwanFactory() {
 
           {/* ─── Goal Section ─── */}
           {(() => {
-            const goal = data.goal;
+            // Auto-clean invalid old goal format (missing startEp/endEp)
+            let goal = data.goal;
+            if (goal && (!goal.startEp || !goal.endEp)) { goal = null; }
             const pace = calcPace(episodes, goal);
 
             return (
