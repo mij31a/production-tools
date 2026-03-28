@@ -276,6 +276,42 @@ function fmtTimer(s) {
 }
 
 // ─── Component ───
+// ─── Calendar Picker ───
+function toISO(d) { return d.toISOString().split("T")[0]; }
+function fmtDate(d) { if (!d) return "—"; const t = new Date(d), w = ["日","月","火","水","木","金","土"]; return (t.getMonth()+1)+"/"+t.getDate()+"("+w[t.getDay()]+")"; }
+
+function CalendarPicker({ value, onChange, label }) {
+  const [open, setOpen] = useState(false);
+  const [vd, setVd] = useState(() => value ? new Date(value) : new Date());
+  const ref = useRef(null);
+  useEffect(() => { function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); } document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, []);
+  const y = vd.getFullYear(), mo = vd.getMonth();
+  const fd = new Date(y, mo, 1).getDay(), dim = new Date(y, mo + 1, 0).getDate();
+  const today = toISO(new Date());
+  const days = []; for (let i = 0; i < fd; i++) days.push(null); for (let i = 1; i <= dim; i++) days.push(i);
+  const mN = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+  const wD = ["日","月","火","水","木","金","土"];
+  function sel(day) { onChange(y + "-" + String(mo+1).padStart(2,"0") + "-" + String(day).padStart(2,"0")); setOpen(false); }
+  return <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+    <button onClick={e => { e.stopPropagation(); setOpen(!open); }} style={{ padding: "8px 10px", borderRadius: 8, border: "1.5px solid #2A2A38", background: "#111116", color: "#E4E4EE", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, minWidth: 130, justifyContent: "space-between", fontSize: 13, fontFamily: "'M PLUS Rounded 1c',sans-serif" }}>
+      <span>{value ? fmtDate(value) : (label || "日付を選択")}</span><span style={{ fontSize: 10, color: "#7E7E96" }}>📅</span>
+    </button>
+    {open && <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: "100%", left: 0, zIndex: 100, marginTop: 4, background: "#1E1E28", border: "1px solid #2A2A38", borderRadius: 12, padding: 12, width: 260, boxShadow: "0 12px 40px rgba(0,0,0,.5)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <button onClick={() => setVd(new Date(y, mo-1, 1))} style={{ background: "none", border: "none", color: "#7E7E96", cursor: "pointer", fontSize: 16, fontFamily: "inherit" }}>◀</button>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "#E4E4EE" }}>{y+"年 "+mN[mo]}</span>
+        <button onClick={() => setVd(new Date(y, mo+1, 1))} style={{ background: "none", border: "none", color: "#7E7E96", cursor: "pointer", fontSize: 16, fontFamily: "inherit" }}>▶</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, textAlign: "center" }}>
+        {wD.map(w => <div key={w} style={{ fontSize: 10, color: "#4A4A60", padding: 4 }}>{w}</div>)}
+        {days.map((d, i) => { if (d === null) return <div key={"e"+i} />; const ds = y + "-" + String(mo+1).padStart(2,"0") + "-" + String(d).padStart(2,"0"); const isSel = ds === value, isT = ds === today;
+          return <button key={i} onClick={() => sel(d)} style={{ background: isSel ? "#F2A7B0" : isT ? "#F2A7B022" : "transparent", color: isSel ? "#fff" : isT ? "#F2A7B0" : "#E4E4EE", border: "none", borderRadius: 6, padding: 6, cursor: "pointer", fontSize: 12, fontWeight: isSel ? 700 : 400, fontFamily: "inherit" }}>{d}</button>;
+        })}
+      </div>
+    </div>}
+  </div>;
+}
+
 function PuwanFactory() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -820,8 +856,7 @@ function PuwanFactory() {
                     <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 10, flexWrap: "wrap" }}>
                       <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11, color: "#7E7E96", fontWeight: 600 }}>
                         期日
-                        <input type="date" style={{ ...S.input, width: 150, marginBottom: 0, padding: "8px 10px", fontSize: 13 }}
-                          value={goalDateInput} onChange={e => setGoalDateInput(e.target.value)} />
+                        <CalendarPicker value={goalDateInput} onChange={v => setGoalDateInput(v)} label="期日を選択" />
                       </label>
                       <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11, color: "#7E7E96", fontWeight: 600 }}>
                         第（開始）
