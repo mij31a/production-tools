@@ -316,7 +316,7 @@ function PuwanFactory() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeEp, setActiveEp] = useState(null);
-  const [working, setWorking] = useState(null);
+  const [stopwatch, setStopwatch] = useState(null); // { running: bool, elapsed: number }
   const [elapsed, setElapsed] = useState(0);
   const [puwanMsg, setPuwanMsg] = useState("");
   const [combo, setCombo] = useState(0);
@@ -483,31 +483,54 @@ function PuwanFactory() {
     return d;
   }
 
-  // Timer
+  // Stopwatch timer
   useEffect(() => {
-    if (working) { timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000); }
+    if (stopwatch?.running) { timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000); }
     else { clearInterval(timerRef.current); }
     return () => clearInterval(timerRef.current);
-  }, [working]);
+  }, [stopwatch?.running]);
 
-  function startWork(epId, task) {
-    setWorking({ epId, key: task.key, phase: task.phase, panelLabel: task.panelLabel });
-    setElapsed(0); setPuwanMsg(rMsg("start")); setActiveEp(epId);
+  function startStopwatch(epId) {
+    setStopwatch({ running: true, epId: epId || null });
+    setElapsed(0); setPuwanMsg(rMsg("start"));
+    if (epId) setActiveEp(epId);
+  }
+  function pauseStopwatch() {
+    setStopwatch(sw => sw ? { ...sw, running: false } : null); setPuwanMsg(rMsg("paused"));
+  }
+  function resumeStopwatch() {
+    setStopwatch(sw => sw ? { ...sw, running: true } : null); setPuwanMsg(rMsg("start"));
+  }
+  function stopStopwatch() {
+    if (!stopwatch) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const newStats = { panels: todayStats.date === today ? todayStats.panels : 0, seconds: (todayStats.date === today ? todayStats.seconds : 0) + elapsed, date: today };
+    // Save elapsed to episode if linked
+    let newData = { ...data };
+    if (stopwatch.epId && elapsed > 0) {
+      newData = { ...newData, episodes: newData.episodes.map(ep => {
+        if (ep.id !== stopwatch.epId) return ep;
+        return { ...ep, seconds: { ...ep.seconds, _total: (ep.seconds._total || 0) + elapsed } };
+      })};
+    }
+    setStopwatch(null); setElapsed(0); setPuwanMsg(rMsg("done1"));
+    let updated = recordActivity(newData, false);
+    updated = checkNewAchievements(updated);
+    save(updated, newStats);
   }
 
-  function completeWork() {
-    if (!working || !data) return;
-    const { epId, key } = working;
+  // Mark done (toggle on)
+  function markDone(epId, taskKey) {
     const now = Date.now();
     const sinceLastDone = lastDoneAt ? (now - lastDoneAt) / 1000 : 999;
     const newEps = data.episodes.map(ep => {
       if (ep.id !== epId) return ep;
-      const updated = { ...ep, done: { ...ep.done, [key]: true }, seconds: { ...ep.seconds, [key]: (ep.seconds[key] || 0) + elapsed } };
+      const updated = { ...ep, done: { ...ep.done, [taskKey]: true } };
       updated.allDone = isEpAllDone(updated);
       return updated;
     });
     const ep = newEps.find(e => e.id === epId);
-    const phaseId = key.split(":")[0];
+    const phaseId = taskKey.split(":")[0];
     const { done: phD, total: phT } = getPhaseProgress(ep, phaseId);
     const phaseComplete = phD >= phT;
     const epComplete = ep.allDone;
@@ -520,27 +543,10 @@ function PuwanFactory() {
     else if (newCombo >= 3) { setPuwanMsg(rMsg("combo")); setShowConfetti(true); setTimeout(() => setShowConfetti(false), 800); }
     else { setPuwanMsg(rMsg("done1")); }
     const today = new Date().toISOString().slice(0, 10);
-    const newStats = { panels: (todayStats.date === today ? todayStats.panels : 0) + 1, seconds: (todayStats.date === today ? todayStats.seconds : 0) + elapsed, date: today };
-    setWorking(null); setElapsed(0);
+    const newStats = { panels: (todayStats.date === today ? todayStats.panels : 0) + 1, seconds: todayStats.date === today ? todayStats.seconds : 0, date: today };
     let updated = recordActivity({ ...data, episodes: newEps }, true);
     updated = checkNewAchievements(updated);
     save(updated, newStats);
-  }
-
-  function cancelWork() { setWorking(null); setElapsed(0); setPuwanMsg(rMsg("paused")); }
-
-  // Mark done without timer (already completed work)
-  function markDone(epId, taskKey) {
-    const newEps = data.episodes.map(ep => {
-      if (ep.id !== epId) return ep;
-      const updated = { ...ep, done: { ...ep.done, [taskKey]: true } };
-      updated.allDone = isEpAllDone(updated);
-      return updated;
-    });
-    setPuwanMsg(rMsg("done1"));
-    let updated = recordActivity({ ...data, episodes: newEps }, false);
-    updated = checkNewAchievements(updated);
-    save(updated);
   }
 
   function bulkCompletePhase(epId, phaseId) {
@@ -742,7 +748,6 @@ function PuwanFactory() {
   if (loading || !data) return <div style={S.loading}><span style={{ color: "#4A4A60", fontSize: 14 }}>荷物を読み込み中…</span></div>;
 
   const episodes = data.episodes || [];
-  const currentEp = episodes.find(e => e.id === activeEp);
   const globalDone = episodes.reduce((s, ep) => s + countAllDone(ep).done, 0);
   const globalTotal = episodes.reduce((s, ep) => s + countAllDone(ep).total, 0);
   const globalSec = episodes.reduce((s, ep) => s + totalSeconds(ep), 0);
@@ -787,44 +792,21 @@ function PuwanFactory() {
       </div>
 
       {/* Tab switcher */}
-      {!working && (
-        <div style={{ display: "flex", margin: "0 16px 8px", borderRadius: 10, background: "#1E1E28", overflow: "hidden", border: "1px solid #2A2A38" }}>
-          {[{ id: "work", label: "📦 作業" }, { id: "stats", label: "📊 統計" }].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              flex: 1, padding: "8px 0", border: "none", cursor: "pointer",
-              fontFamily: "'M PLUS Rounded 1c',sans-serif", fontSize: 12, fontWeight: 700,
-              background: tab === t.id ? "#F2A7B030" : "transparent",
-              color: tab === t.id ? "#F2A7B0" : "#4A4A60",
-              transition: "all .2s",
-            }}>{t.label}</button>
-          ))}
-        </div>
-      )}
+      <div style={{ display: "flex", margin: "0 16px 8px", borderRadius: 10, background: "#1E1E28", overflow: "hidden", border: "1px solid #2A2A38" }}>
+        {[{ id: "work", label: "📦 作業" }, { id: "stats", label: "📊 統計" }].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
+            flex: 1, padding: "8px 0", border: "none", cursor: "pointer",
+            fontFamily: "'M PLUS Rounded 1c',sans-serif", fontSize: 12, fontWeight: 700,
+            background: tab === t.id ? "#F2A7B030" : "transparent",
+            color: tab === t.id ? "#F2A7B0" : "#4A4A60",
+            transition: "all .2s",
+          }}>{t.label}</button>
+        ))}
+      </div>
 
-      {/* Working */}
-      {working && (
-        <div style={S.workCard}>
-          <div style={S.conveyor} />
-          <div style={S.workInner}>
-            <div style={{ fontSize: 11, color: "#7E7E96", fontWeight: 600, marginBottom: 4 }}>{currentEp?.title}</div>
-            <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 16 }}>
-              {working.phase.icon} {working.phase.label}
-              {working.panelLabel && <span style={{ fontWeight: 500, color: "#7E7E96" }}> → {working.panelLabel}</span>}
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <span style={S.timerD}>{fmtTimer(elapsed)}</span>
-              <span style={{ fontSize: 11, color: "#F2A7B0", fontWeight: 600, display: "block" }}>処理中…</span>
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button style={S.btnDone} onClick={completeWork}>✓ 処理完了！</button>
-              <button style={S.btnStop} onClick={cancelWork}>やめる</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Episodes */}
-      {!working && tab === "work" && (
+      {tab === "work" && (
         <div style={{ padding: "4px 16px 32px" }}>
           {/* Overall */}
           <div style={{ marginBottom: 12 }}>
@@ -1130,6 +1112,9 @@ function PuwanFactory() {
                         {secs > 0 && <span style={{ fontSize: 10, color: "#4A4A60" }}>⏱{fmtTime(secs)}</span>}
                         {milestone && !ep.allDone && <span style={{ fontSize: 10, color: "#4A4A60" }}>📅{milestone.dateStr}</span>}
                       </div>
+                      {stopwatch?.epId === ep.id && (
+                        <span style={{ fontSize: 10, padding: "1px 8px", borderRadius: 4, background: "#F2A7B020", color: "#F2A7B0", fontWeight: 700, border: "1px solid #F2A7B044", marginTop: 2 }}>⏱ タイマー中</span>
+                      )}
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
@@ -1141,11 +1126,35 @@ function PuwanFactory() {
 
                 {isOpen && (
                   <div style={{ padding: "8px 14px 14px" }}>
-                    {/* Quick start */}
+                    {/* Episode timer */}
+                    {!isEdit && !ep.allDone && (
+                      stopwatch?.epId === ep.id ? (
+                        <div style={{ marginBottom: 10, borderRadius: 12, background: "#1E1820", border: "1.5px solid #F2A7B044", overflow: "hidden" }}>
+                          <div style={{ ...S.conveyor, height: 4, animationPlayState: stopwatch.running ? "running" : "paused" }} />
+                          <div style={{ padding: "12px 14px", textAlign: "center" }}>
+                            <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 32, fontWeight: 700, color: stopwatch.running ? "#E4E4EE" : "#7E7E96", letterSpacing: 2, display: "block", marginBottom: 4, animation: stopwatch.running ? "glowPulse 2s ease infinite" : "none" }}>{fmtTimer(elapsed)}</span>
+                            <span style={{ fontSize: 10, color: stopwatch.running ? "#F2A7B0" : "#7E7E96", fontWeight: 600 }}>{stopwatch.running ? "作業中…" : "一時停止中"}</span>
+                            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                              {stopwatch.running ? (
+                                <button style={{ ...S.btnPause, flex: 1, padding: 10, fontSize: 13 }} onClick={e => { e.stopPropagation(); pauseStopwatch(); }}>⏸ 一時停止</button>
+                              ) : (
+                                <button style={{ ...S.btnDone, flex: 1, padding: 10, fontSize: 13 }} onClick={e => { e.stopPropagation(); resumeStopwatch(); }}>▶ 再開</button>
+                              )}
+                              <button style={{ ...S.btnStop, padding: 10, fontSize: 12 }} onClick={e => { e.stopPropagation(); stopStopwatch(); }}>⏹ 終了</button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : !stopwatch && (
+                        <button style={{ ...S.startSwBtn, marginBottom: 10, fontSize: 12, padding: "10px 14px" }} onClick={e => { e.stopPropagation(); startStopwatch(ep.id); }}>
+                          ▶ タイマー開始
+                        </button>
+                      )
+                    )}
+                    {/* Next task hint */}
                     {next && !isEdit && (
-                      <button style={S.quickBtn} onClick={e => { e.stopPropagation(); startWork(ep.id, next); }}>
-                        ▶ 次：{next.phase.icon} {next.phase.label}{next.panelLabel ? " → " + next.panelLabel : ""}
-                      </button>
+                      <div style={{ padding: "6px 12px", marginBottom: 10, borderRadius: 8, background: "#F2A7B010", border: "1px solid #F2A7B033", fontSize: 11, color: "#F2A7B0", fontWeight: 600 }}>
+                        次：{next.phase.icon} {next.phase.label}{next.panelLabel ? " → " + next.panelLabel : ""}
+                      </div>
                     )}
 
                     {PHASES.map(ph => {
@@ -1167,21 +1176,10 @@ function PuwanFactory() {
 
                           {ph.unit === "batch" && (
                             <div>
-                              {ep.done[ph.id] ? (
-                                <button style={S.taskDone} onClick={e => { e.stopPropagation(); toggleTask(ep.id, ph.id); }}>
-                                  <span style={{ fontWeight: 800, fontSize: 14, color: "#5DE8A0" }}>✓</span>
-                                  <span style={{ color: "#9E9E9E" }}>完了{ep.seconds[ph.id] ? " (" + fmtTime(ep.seconds[ph.id]) + ")" : ""}</span>
-                                </button>
-                              ) : (
-                                <div style={{ display: "flex", gap: 6 }}>
-                                  <button style={{ ...S.taskPlay, flex: 1 }} onClick={e => { e.stopPropagation(); startWork(ep.id, { key: ph.id, phase: ph, panelId: null, panelLabel: null }); }}>
-                                    <span style={{ color: "#F2A7B0", fontSize: 11 }}>▶</span> タイマーで処理
-                                  </button>
-                                  <button style={S.markDoneBtn} onClick={e => { e.stopPropagation(); markDone(ep.id, ph.id); }}>
-                                    済
-                                  </button>
-                                </div>
-                              )}
+                              <button style={ep.done[ph.id] ? S.taskDone : S.taskUndone} onClick={e => { e.stopPropagation(); if (ep.done[ph.id]) toggleTask(ep.id, ph.id); else markDone(ep.id, ph.id); }}>
+                                {ep.done[ph.id] ? <span style={{ fontWeight: 800, fontSize: 14, color: "#5DE8A0" }}>✓</span> : <span style={{ color: "#7E7E96", fontSize: 14 }}>○</span>}
+                                <span style={{ color: ep.done[ph.id] ? "#9E9E9E" : "#C4C4D4" }}>{ep.done[ph.id] ? "完了" : "済にする"}</span>
+                              </button>
                             </div>
                           )}
 
@@ -1190,7 +1188,6 @@ function PuwanFactory() {
                               {ep.panels.map(panel => {
                                 const tKey = ph.id + ":" + panel.id;
                                 const isDone = !!ep.done[tKey];
-                                const sec = ep.seconds[tKey] || 0;
 
                                 if (isEdit && ph.id === "color") {
                                   return (
@@ -1202,18 +1199,12 @@ function PuwanFactory() {
                                 }
 
                                 return (
-                                  <div key={panel.id} style={{ display: "flex", gap: 0 }}>
-                                    <button style={{ ...S.pBtn, flex: 1, background: isDone ? "#5DE8A010" : "#18181F", borderColor: isDone ? "#5DE8A044" : "#2A2A38", borderRadius: isDone ? 8 : "8px 0 0 8px" }}
-                                      onClick={e => { e.stopPropagation(); if (isDone) toggleTask(ep.id, tKey); else startWork(ep.id, { key: tKey, phase: ph, panelId: panel.id, panelLabel: panel.label }); }}>
-                                      {isDone ? <span style={{ color: "#5DE8A0", fontWeight: 800, fontSize: 12 }}>✓</span> : <span style={{ color: "#F2A7B0", fontSize: 10 }}>▶</span>}
+                                  <div key={panel.id}>
+                                    <button style={{ ...S.pBtn, background: isDone ? "#5DE8A010" : "#18181F", borderColor: isDone ? "#5DE8A044" : "#2A2A38" }}
+                                      onClick={e => { e.stopPropagation(); if (isDone) toggleTask(ep.id, tKey); else markDone(ep.id, tKey); }}>
+                                      {isDone ? <span style={{ color: "#5DE8A0", fontWeight: 800, fontSize: 12 }}>✓</span> : <span style={{ color: "#7E7E96", fontSize: 11 }}>○</span>}
                                       <span style={{ fontWeight: 600, fontSize: 11, color: isDone ? "#9E9E9E" : "#C4C4D4", textDecoration: isDone ? "line-through" : "none" }}>{panel.label}</span>
-                                      {sec > 0 && <span style={{ fontSize: 9, color: "#4A4A60", fontFamily: "'Share Tech Mono',monospace" }}>{fmtTime(sec)}</span>}
                                     </button>
-                                    {!isDone && (
-                                      <button style={S.markDoneBtnSmall} onClick={e => { e.stopPropagation(); markDone(ep.id, tKey); }}>
-                                        済
-                                      </button>
-                                    )}
                                   </div>
                                 );
                               })}
@@ -1270,7 +1261,7 @@ function PuwanFactory() {
       )}
 
       {/* ═══ Stats Tab ═══ */}
-      {!working && tab === "stats" && (() => {
+      {tab === "stats" && (() => {
         const completedEps = episodes.filter(e => e.allDone && totalSeconds(e) > 0);
         const avgPerTask = globalDone > 0 ? Math.round(globalSec / globalDone) : 0;
 
@@ -1509,24 +1500,20 @@ const S = {
   sv: { display: "block", fontFamily: "'Share Tech Mono',monospace", fontSize: 17, fontWeight: 700, color: "#E4E4EE" },
   sk: { fontSize: 10, color: "#7E7E96" },
   sd: { width: 1, height: 28, background: "#2A2A38" },
-  workCard: { margin: "8px 16px 16px", borderRadius: 16, overflow: "hidden", background: "#1E1E28", boxShadow: "0 4px 20px rgba(242,167,176,.25)", border: "2px solid #F2A7B0" },
   conveyor: { height: 6, background: "repeating-linear-gradient(90deg,#F2A7B0 0,#F2A7B0 10px,#2D1820 10px,#2D1820 20px)", backgroundSize: "20px 6px", animation: "conveyorMove .6s linear infinite" },
-  workInner: { padding: "20px 20px 18px", textAlign: "center" },
-  timerD: { fontFamily: "'Share Tech Mono',monospace", fontSize: 52, fontWeight: 700, color: "#E4E4EE", letterSpacing: 3, display: "block", animation: "glowPulse 2s ease infinite" },
-  btnDone: { flex: 2, padding: 14, borderRadius: 12, border: "none", background: "linear-gradient(135deg,#F2A7B0,#E8919D)", color: "#FFF", fontSize: 16, fontWeight: 800, cursor: "pointer", letterSpacing: 1 },
-  btnStop: { flex: 1, padding: 14, borderRadius: 12, border: "2px solid #2A2A38", background: "#18181F", color: "#7E7E96", fontSize: 13, fontWeight: 600, cursor: "pointer" },
+  btnDone: { flex: 2, padding: 14, borderRadius: 12, border: "none", background: "linear-gradient(135deg,#F2A7B0,#E8919D)", color: "#FFF", fontSize: 16, fontWeight: 800, cursor: "pointer", letterSpacing: 1, fontFamily: "'M PLUS Rounded 1c',sans-serif" },
+  btnPause: { flex: 2, padding: 14, borderRadius: 12, border: "2px solid #F2A7B0", background: "#1E1820", color: "#F2A7B0", fontSize: 15, fontWeight: 800, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" },
+  btnStop: { flex: 1, padding: 14, borderRadius: 12, border: "2px solid #2A2A38", background: "#18181F", color: "#7E7E96", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" },
+  startSwBtn: { width: "100%", padding: "14px", borderRadius: 12, border: "2px solid #F2A7B066", background: "#F2A7B010", color: "#F2A7B0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif", letterSpacing: 0.5 },
+  taskUndone: { display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: "1.5px solid #2A2A38", background: "#18181F", cursor: "pointer", width: "100%", fontSize: 12, fontFamily: "'M PLUS Rounded 1c',sans-serif", fontWeight: 600 },
   barBg: { height: 8, background: "#2A2A38", borderRadius: 4, overflow: "hidden" },
   barFill: { height: "100%", borderRadius: 4, background: "linear-gradient(90deg,#F2A7B0,#E8919D)", transition: "width .5s" },
   epCard: { background: "#1E1E28", borderRadius: 14, marginBottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.3)", overflow: "hidden" },
   epHead: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px 8px", cursor: "pointer" },
   epIco: { width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 },
-  quickBtn: { width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid #F2A7B0", background: "#1E1820", color: "#F2A7B0", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 12, textAlign: "left", fontFamily: "'M PLUS Rounded 1c',sans-serif" },
   taskDone: { display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: "1px solid #5DE8A044", background: "#5DE8A010", cursor: "pointer", width: "100%", fontSize: 12, fontFamily: "'M PLUS Rounded 1c',sans-serif" },
-  taskPlay: { display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: "1.5px solid #2A2A38", background: "#18181F", cursor: "pointer", width: "100%", fontSize: 12, fontFamily: "'M PLUS Rounded 1c',sans-serif", fontWeight: 600, color: "#C4C4D4" },
   pBtn: { display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 8, border: "1.5px solid #2A2A38", cursor: "pointer", fontSize: 11, fontFamily: "'M PLUS Rounded 1c',sans-serif", background: "#18181F", whiteSpace: "nowrap" },
   bulkBtn: { display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 8, border: "1.5px dashed #5DE8A044", cursor: "pointer", fontSize: 11, fontFamily: "'M PLUS Rounded 1c',sans-serif", background: "#5DE8A010", color: "#5DE8A0", fontWeight: 600, whiteSpace: "nowrap" },
-  markDoneBtn: { padding: "8px 14px", borderRadius: 8, border: "1.5px solid #2A2A38", background: "#111116", color: "#7E7E96", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif", whiteSpace: "nowrap" },
-  markDoneBtnSmall: { padding: "4px 8px", borderRadius: "0 8px 8px 0", border: "1.5px solid #2A2A38", borderLeft: "none", background: "#111116", color: "#7E7E96", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif", whiteSpace: "nowrap" },
   editIn: { flex: 1, padding: "5px 8px", borderRadius: 6, border: "1.5px solid #2A2A38", fontSize: 11, background: "#111116", color: "#E4E4EE" },
   editDel: { width: 24, height: 24, borderRadius: 6, border: "1px solid #ff444444", background: "#1E1E28", color: "#ff6666", fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
   ghost: { padding: "6px 14px", borderRadius: 8, border: "1px solid #2A2A38", background: "transparent", color: "#7E7E96", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'M PLUS Rounded 1c',sans-serif" },
