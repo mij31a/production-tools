@@ -483,23 +483,33 @@ function PuwanFactory() {
     return d;
   }
 
-  // Stopwatch timer
+  // Stopwatch timer (timestamp-based to survive background tab throttling)
   useEffect(() => {
-    if (stopwatch?.running) { timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000); }
-    else { clearInterval(timerRef.current); }
+    if (stopwatch?.running) {
+      timerRef.current = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - stopwatch.startedAt) / 1000) + (stopwatch.banked || 0));
+      }, 500);
+    } else { clearInterval(timerRef.current); }
     return () => clearInterval(timerRef.current);
-  }, [stopwatch?.running]);
+  }, [stopwatch?.running, stopwatch?.startedAt, stopwatch?.banked]);
 
   function startStopwatch(epId) {
-    setStopwatch({ running: true, epId: epId || null });
+    setStopwatch({ running: true, epId: epId || null, startedAt: Date.now(), banked: 0 });
     setElapsed(0); setPuwanMsg(rMsg("start"));
     if (epId) setActiveEp(epId);
   }
   function pauseStopwatch() {
-    setStopwatch(sw => sw ? { ...sw, running: false } : null); setPuwanMsg(rMsg("paused"));
+    setStopwatch(sw => {
+      if (!sw) return null;
+      const now = Math.floor((Date.now() - sw.startedAt) / 1000) + (sw.banked || 0);
+      setElapsed(now);
+      return { ...sw, running: false, banked: now };
+    });
+    setPuwanMsg(rMsg("paused"));
   }
   function resumeStopwatch() {
-    setStopwatch(sw => sw ? { ...sw, running: true } : null); setPuwanMsg(rMsg("start"));
+    setStopwatch(sw => sw ? { ...sw, running: true, startedAt: Date.now() } : null);
+    setPuwanMsg(rMsg("start"));
   }
   function stopStopwatch() {
     if (!stopwatch) return;
