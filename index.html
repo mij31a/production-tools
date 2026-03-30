@@ -145,8 +145,22 @@ iframe.visible { display: block; }
     <button class="s-btn" onclick="gasPull()">↓ 取得</button>
     <button class="s-btn" onclick="gasPush()">↑ 送信</button>
     <button class="s-btn" onclick="exportData()">💾 書出し</button>
+    <button class="s-btn" onclick="document.getElementById('import-file').click()">📂 読込み</button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)" />
   </div>
   <div id="gas-status" class="s-status"></div>
+
+  <div style="border-top: 1px solid #2A2A38; margin: 12px 0; padding-top: 12px;">
+    <div class="s-label">📱 SNS配信グループ</div>
+    <div style="font-size: 10px; color: #7E7E96; margin-bottom: 6px;">
+      A（最速）: X + Threads ／ B（追いかけ）: IG + TikTok
+    </div>
+    <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+      <button class="s-btn" id="delay-sync" onclick="setSnsDelay('sync')">同時配信</button>
+      <button class="s-btn" id="delay-lag5" onclick="setSnsDelay('lag5')">5話遅れ</button>
+    </div>
+    <div id="delay-status" class="s-status"></div>
+  </div>
 
   <div style="border-top: 1px solid #2A2A38; margin: 12px 0; padding-top: 12px;">
     <button class="s-btn danger" onclick="resetAll()" style="width: 100%;">データリセット</button>
@@ -241,6 +255,94 @@ iframe.visible { display: block; }
     a.href = URL.createObjectURL(blob);
     a.download = 'puwan-production-backup-' + new Date().toISOString().slice(0, 10) + '.json';
     a.click();
+  }
+
+  var SNS_DELAY_KEY = 'puwan-sns-delay';
+
+  function setSnsDelay(mode) {
+    localStorage.setItem(SNS_DELAY_KEY, JSON.stringify({ mode: mode }));
+    updateDelayButtons(mode);
+    document.getElementById('delay-status').textContent = (mode === 'lag5' ? '5話遅れ' : '同時配信') + 'に設定しました';
+    document.getElementById('delay-status').style.color = '#5DE8A0';
+    setTimeout(function() { document.getElementById('delay-status').textContent = ''; }, 2000);
+    // Reload dashboard iframe to pick up new setting
+    var df = document.getElementById('frame-dashboard');
+    if (df) df.src = df.src;
+  }
+
+  function updateDelayButtons(mode) {
+    var syncBtn = document.getElementById('delay-sync');
+    var lagBtn = document.getElementById('delay-lag5');
+    syncBtn.style.background = mode === 'sync' ? '#F2A7B020' : 'transparent';
+    syncBtn.style.color = mode === 'sync' ? '#F2A7B0' : '#7E7E96';
+    syncBtn.style.borderColor = mode === 'sync' ? '#F2A7B044' : '#2A2A38';
+    lagBtn.style.background = mode === 'lag5' ? '#F2A7B020' : 'transparent';
+    lagBtn.style.color = mode === 'lag5' ? '#F2A7B0' : '#7E7E96';
+    lagBtn.style.borderColor = mode === 'lag5' ? '#F2A7B044' : '#2A2A38';
+  }
+
+  // Init delay buttons
+  (function() {
+    try {
+      var v = localStorage.getItem(SNS_DELAY_KEY);
+      var mode = v ? JSON.parse(v).mode : 'sync';
+      updateDelayButtons(mode);
+    } catch(e) { updateDelayButtons('sync'); }
+  })();
+
+  function importData(input) {
+    var file = input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var json = JSON.parse(e.target.result);
+        // Handle import-data.json format (episodes array with numeric ids)
+        if (json.episodes && Array.isArray(json.episodes)) {
+          var existing = localStorage.getItem(SK);
+          var data = existing ? JSON.parse(existing) : { episodes: [] };
+          var imported = 0;
+          json.episodes.forEach(function(imp) {
+            // Generate proper id if numeric
+            var epId = typeof imp.id === 'number' ? 'ep_imp_' + imp.id : imp.id;
+            // Check for duplicate by title
+            var dup = data.episodes.find(function(e) { return e.title === imp.title; });
+            if (dup) {
+              // Merge: update fields that exist in import but preserve existing done/seconds
+              Object.keys(imp).forEach(function(k) {
+                if (k !== 'id' && k !== 'done' && k !== 'seconds' && k !== 'allDone') dup[k] = imp[k];
+              });
+            } else {
+              data.episodes.push({
+                id: epId, title: imp.title || '', panels: imp.panels || [],
+                done: imp.done || {}, seconds: imp.seconds || {}, allDone: imp.allDone || false,
+                postType: imp.postType || 'manga', postDate: imp.postDate || '',
+                steps: imp.steps || {}, snsState: imp.snsState || {},
+                captions: imp.captions || {}, story: imp.story || imp.storyDraft || '',
+                storyDraft: imp.storyDraft || imp.story || '',
+                snsMetrics: imp.snsMetrics || {}, analyticsNote: imp.analyticsNote || '',
+                postUrls: imp.postUrls || {}, scriptMemo: imp.scriptMemo || ''
+              });
+              imported++;
+            }
+          });
+          localStorage.setItem(SK, JSON.stringify(data));
+          setStatus(imported + '件追加、' + (json.episodes.length - imported) + '件マージ完了！リロードします', true);
+          setTimeout(function() { location.reload(); }, 800);
+        } else {
+          // Direct puwan-production format: overwrite
+          if (confirm('既存データを上書きしますか？')) {
+            localStorage.setItem(SK, JSON.stringify(json));
+            setStatus('データ復元完了！リロードします', true);
+            setTimeout(function() { location.reload(); }, 800);
+          }
+        }
+      } catch(err) {
+        setStatus('読込み失敗: ' + err.message, false);
+      }
+      input.value = '';
+    };
+    reader.readAsText(file);
   }
 
   function resetAll() {

@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex, nofollow">
-<title>ぷわんな毎日 ダッシュボード</title>
+<title>ぷわんケア ダッシュボード</title>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet" />
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -144,6 +144,11 @@ const SNS_METRICS = {
 
 
 
+const SNS_DELAY_KEY = "puwan-sns-delay";
+function getSnsDelay() {
+  try { const v = localStorage.getItem(SNS_DELAY_KEY); return v ? JSON.parse(v) : { mode: "sync" }; } catch { return { mode: "sync" }; }
+}
+
 const INIT = { episodes: [], nextId: 1, projectName: "配信管理", defaultCadence: "daily", weeklyFollowers: [], weeklyReviews: [], dismissedTasks: [] };
 
 const GAS_URL_KEY = "puwan-production-gas-url";
@@ -179,21 +184,18 @@ function deriveStatus(ep) {
   const allScheduled = SNS_LIST.every(s => ss[s.id] === "scheduled");
   if (allPosted) return "posted";
   if (allScheduled) return "scheduled";
-  if (ep.postDate) return "done";
   if (st.plot) return "plot";
   return "none";
 }
 
 // Auto-check scheduled -> posted based on delivery times
-function autoUpdateSnsState(ep) {
+function autoUpdateSnsState(ep, sortedEps) {
   if (!ep.postDate) return ep.snsState || {};
   const now = new Date();
   const ss = { ...(ep.snsState || {}) };
-  const xDate = new Date(ep.postDate + "T19:50:00");
-  const thDate = new Date(ep.postDate + "T19:50:00");
-  const igDate = new Date(addDaysTo(ep.postDate, 1) + "T12:00:00");
-  const ttDate = new Date(addDaysTo(ep.postDate, 1) + "T18:00:00");
-  const times = { x: xDate, threads: thDate, ig: igDate, tiktok: ttDate };
+  const schedule = getDeliverySchedule(ep, sortedEps);
+  const times = {};
+  schedule.forEach(s => { times[s.sns] = new Date(s.date + "T" + s.time + ":00"); });
   for (const sns of SNS_LIST) {
     if (ss[sns.id] === "scheduled" && times[sns.id] && now >= times[sns.id]) {
       ss[sns.id] = "posted";
@@ -202,27 +204,41 @@ function autoUpdateSnsState(ep) {
   return ss;
 }
 
-function getDeliverySchedule(ep) {
+function getDeliverySchedule(ep, sortedEps) {
   if (!ep.postDate) return [];
-  return [
-    { sns: "x", date: ep.postDate, time: "19:50", label: "X" },
-    { sns: "threads", date: ep.postDate, time: "19:50", label: "Threads" },
-    { sns: "ig", date: addDaysTo(ep.postDate, 1), time: "12:00", label: "IG" },
-    { sns: "tiktok", date: addDaysTo(ep.postDate, 1), time: "18:00", label: "TikTok" },
+  const delay = getSnsDelay();
+  let groupBDate = addDaysTo(ep.postDate, 1); // default: next day
+  if (delay.mode === "lag5" && sortedEps) {
+    const idx = sortedEps.findIndex(e => e.id === ep.id);
+    if (idx >= 0 && idx + 5 < sortedEps.length && sortedEps[idx + 5].postDate) {
+      groupBDate = sortedEps[idx + 5].postDate;
+    } else {
+      groupBDate = null; // not enough episodes yet
+    }
+  }
+  const schedule = [
+    { sns: "x", date: ep.postDate, time: "19:50", label: "X", group: "a" },
+    { sns: "threads", date: ep.postDate, time: "19:50", label: "Threads", group: "a" },
   ];
+  if (groupBDate) {
+    schedule.push({ sns: "ig", date: groupBDate, time: "12:00", label: "IG", group: "b" });
+    schedule.push({ sns: "tiktok", date: groupBDate, time: "18:00", label: "TikTok", group: "b" });
+  }
+  return schedule;
 }
 
 // Generate data input tasks for today
-function generateTasks(eps, today, weeklyFollowers, dismissedTasks, dnMap) {
+function generateTasks(eps, today, weeklyFollowers, dismissedTasks, dnMap, sortedEps) {
   const tasks = [];
   const dismissed = dismissedTasks || [];
   function dn(ep) { return (dnMap || {})[ep.id] || "?"; }
   for (const ep of eps) {
     if (!ep.postDate) continue;
+    const schedule = getDeliverySchedule(ep, sortedEps || eps);
     const xDate = ep.postDate;
-    const igDate = addDaysTo(ep.postDate, 1);
+    const igEntry = schedule.find(s => s.sns === "ig");
+    const igDate = igEntry ? igEntry.date : null;
     const daysFromX = daysBetween(xDate, today);
-    const daysFromIG = daysBetween(igDate, today);
 
     // X/Threads 24h check (1+ day after X post date, show until filled)
     if (daysFromX >= 1) {
@@ -239,22 +255,25 @@ function generateTasks(eps, today, weeklyFollowers, dismissedTasks, dnMap) {
       if (tEmpty && !dismissed.includes(taskKeyTh)) tasks.push({ type: "input", ep, sns: "threads", timing: "24h", pri: 1, key: taskKeyTh, label: `ep.${dn(ep)} Threads数値入力（24h経過）` });
     }
     // IG/TikTok 7d check (7+ days after IG post date, show until filled)
-    if (daysFromIG >= 7) {
-      const taskKeyIG = ep.id + "-ig-d7";
-      const igm = ep.snsMetrics?.ig?.d7 || {};
-      const igEmpty = !SNS_METRICS.ig.fields.some(f => igm[f.key]);
-      if (igEmpty && !dismissed.includes(taskKeyIG)) tasks.push({ type: "input", ep, sns: "ig", timing: "7d", pri: 3, key: taskKeyIG, label: `ep.${dn(ep)} IG数値入力（7日経過）` });
-      const taskKeyTT = ep.id + "-tiktok-d7";
-      const ttm = ep.snsMetrics?.tiktok?.d7 || {};
-      const ttEmpty = !SNS_METRICS.tiktok.fields.some(f => ttm[f.key]);
-      if (ttEmpty && !dismissed.includes(taskKeyTT)) tasks.push({ type: "input", ep, sns: "tiktok", timing: "7d", pri: 2, key: taskKeyTT, label: `ep.${dn(ep)} TikTok数値入力（7日経過）` });
-    }
-    // IG 30d save check (30+ days, show until filled)
-    if (daysFromIG >= 30) {
-      const taskKey30 = ep.id + "-ig-d30";
-      const igm30 = ep.snsMetrics?.ig?.d30 || {};
-      const ig30Empty = !igm30.saves;
-      if (ig30Empty && !dismissed.includes(taskKey30)) tasks.push({ type: "input", ep, sns: "ig", timing: "30d", pri: 3, key: taskKey30, label: `ep.${dn(ep)} IG保存数更新（30日経過）` });
+    if (igDate) {
+      const daysFromIG = daysBetween(igDate, today);
+      if (daysFromIG >= 7) {
+        const taskKeyIG = ep.id + "-ig-d7";
+        const igm = ep.snsMetrics?.ig?.d7 || {};
+        const igEmpty = !SNS_METRICS.ig.fields.some(f => igm[f.key]);
+        if (igEmpty && !dismissed.includes(taskKeyIG)) tasks.push({ type: "input", ep, sns: "ig", timing: "7d", pri: 3, key: taskKeyIG, label: `ep.${dn(ep)} IG数値入力（7日経過）` });
+        const taskKeyTT = ep.id + "-tiktok-d7";
+        const ttm = ep.snsMetrics?.tiktok?.d7 || {};
+        const ttEmpty = !SNS_METRICS.tiktok.fields.some(f => ttm[f.key]);
+        if (ttEmpty && !dismissed.includes(taskKeyTT)) tasks.push({ type: "input", ep, sns: "tiktok", timing: "7d", pri: 2, key: taskKeyTT, label: `ep.${dn(ep)} TikTok数値入力（7日経過）` });
+      }
+      // IG 30d save check (30+ days, show until filled)
+      if (daysFromIG >= 30) {
+        const taskKey30 = ep.id + "-ig-d30";
+        const igm30 = ep.snsMetrics?.ig?.d30 || {};
+        const ig30Empty = !igm30.saves;
+        if (ig30Empty && !dismissed.includes(taskKey30)) tasks.push({ type: "input", ep, sns: "ig", timing: "30d", pri: 3, key: taskKey30, label: `ep.${dn(ep)} IG保存数更新（30日経過）` });
+      }
     }
   }
   // Weekly follower check (Sunday)
@@ -413,12 +432,14 @@ function ScheduleTimeline({ eps, onOpenId, openId, dn }) {
   const dated = eps.filter(e => e.postDate).sort((a, b) => a.postDate.localeCompare(b.postDate));
   if (dated.length === 0) return <div style={{ textAlign: "center", padding: 40, color: C.dim }}>投稿日が設定されたエピソードがありません</div>;
 
-  // Build date map: X/Threads = postDate, IG/TikTok = postDate + 1
+  const delay = getSnsDelay();
+  // Build date map using delivery schedule
   const groupA = {}; // date -> ep (X + Threads)
-  const groupB = {}; // date -> ep (IG + TikTok, one day after)
+  const groupB = {}; // date -> ep (IG + TikTok)
   dated.forEach(ep => {
-    groupA[ep.postDate] = ep;
-    groupB[addDaysTo(ep.postDate, 1)] = ep;
+    const schedule = getDeliverySchedule(ep, dated);
+    schedule.filter(s => s.group === "a").forEach(s => { groupA[s.date] = ep; });
+    schedule.filter(s => s.group === "b").forEach(s => { groupB[s.date] = ep; });
   });
 
   // Collect all dates
@@ -442,7 +463,7 @@ function ScheduleTimeline({ eps, onOpenId, openId, dn }) {
     <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 1fr", gap: 8, padding: "8px 12px", borderBottom: "1px solid " + C.border }}>
       <div style={{ fontSize: 11, color: C.sub, fontWeight: 600, textAlign: "center" }}>日付</div>
       <div style={{ fontSize: 11, color: C.sub, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><SnsIcon id="x" size={13} /><SnsIcon id="threads" size={13} /><span>19:50</span></div>
-      <div style={{ fontSize: 11, color: C.sub, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><SnsIcon id="ig" size={13} /><SnsIcon id="tiktok" size={13} /><span>翌日</span></div>
+      <div style={{ fontSize: 11, color: C.sub, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><SnsIcon id="ig" size={13} /><SnsIcon id="tiktok" size={13} /><span>{delay.mode === "lag5" ? "5話遅れ" : "翌日"}</span></div>
     </div>
     {allDays.map(day => {
       const isToday = day === today, isPast = day < today;
@@ -489,11 +510,12 @@ function DetailPanel({ ep, update, onClose, onDelete, allEps, displayNum }) {
   const st = ep.steps || {};
   const [dtab, setDtab] = useState("sns");
 
-  const schedule = getDeliverySchedule(ep);
+  const sortedAll = [...allEps].filter(e => e.postDate).sort((a, b) => a.postDate.localeCompare(b.postDate));
+  const schedule = getDeliverySchedule(ep, sortedAll);
 
   // Reply generator
   function genReply(snsId) {
-    const sorted = [...allEps].filter(e => e.postDate).sort((a, b) => a.postDate.localeCompare(b.postDate));
+    const sorted = sortedAll;
     const ep1 = sorted[0] && ((sorted[0].postUrls || {})[snsId] || "").trim() ? sorted[0] : null;
     const myIdx = sorted.findIndex(e => e.id === ep.id);
     const prevEp = myIdx > 0 ? sorted.slice(0, myIdx).filter(e => ((e.postUrls || {})[snsId] || "").trim()).pop() : null;
@@ -1012,7 +1034,8 @@ function MangaDashboard() {
   function cycleSort(key) { if (sortKey === key) { if (sortDir === "asc") setSortDir("desc"); else { setSortKey(null); setSortDir("asc"); } } else { setSortKey(key); setSortDir("asc"); } }
 
   const today = toISO(new Date());
-  const tasks = generateTasks(eps, today, data.weeklyFollowers, data.dismissedTasks, displayNumMap);
+  const sortedByDate = [...eps].filter(e => e.postDate).sort((a, b) => a.postDate.localeCompare(b.postDate));
+  const tasks = generateTasks(eps, today, data.weeklyFollowers, data.dismissedTasks, displayNumMap, sortedByDate);
 
   const epsD = eps.map((ep, idx) => ({ ep, idx, status: deriveStatus(ep) }));
   let filtered = epsD;

@@ -82,7 +82,6 @@ function deriveStatus(ep) {
   const ss = ep.snsState || {};
   const allPosted = ["x", "threads", "ig", "tiktok"].every(s => ss[s] === "posted");
   if (allPosted) return "posted";
-  if (ep.postDate) return "ready";
   if (ep.allDone) return "art_done";
   const { done: dc } = countAllDone(ep);
   if (dc > 0) return "wip";
