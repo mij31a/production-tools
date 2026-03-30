@@ -58,6 +58,7 @@ const PHASES = [
   { id: "ink", label: "ペン入れ", icon: "🖊️", unit: "panel", desc: "1コマずつ" },
   { id: "color", label: "塗り", icon: "🎨", unit: "panel", desc: "1コマずつ" },
   { id: "finish", label: "仕上げ", icon: "✨", unit: "panel", desc: "1コマずつ" },
+  { id: "label", label: "ラベルカード", icon: "🏷️", unit: "batch", desc: "おまけラベル" },
 ];
 
 // ─── Post types ───
@@ -95,13 +96,18 @@ function makePanels(labels) {
 
 const DEFAULT_EPS = [
   {
+    id: "ep0", title: "プロローグ",
+    panels: makePanels(["P1-C1 大ゴマ シルエット", "P1-C2 中ゴマ コンベア", "P1-C3 大ゴマ ぷわん初登場"]),
+    done: {}, seconds: {}, allDone: true,
+  },
+  {
     id: "ep1", title: "私はぷわん。キミの…",
-    panels: makePanels(["P1-C1 大ゴマ", "P1-C2 右小ゴマ", "P1-C3 左小ゴマ", "P1-C4 大ゴマ", "P2-C1 右上小ゴマ", "P2-C2 左上小ゴマ", "P2-C3 大ゴマ", "ラベルカード"]),
+    panels: makePanels(["P1-C1 大ゴマ", "P1-C2 右小ゴマ", "P1-C3 左小ゴマ", "P1-C4 大ゴマ", "P2-C1 右上小ゴマ", "P2-C2 左上小ゴマ", "P2-C3 大ゴマ"]),
     done: {}, seconds: {}, allDone: true,
   },
   {
     id: "ep2", title: "届くといいな",
-    panels: makePanels(["P1-C1 大ゴマ", "P1-C2 中ゴマ右", "P1-C3 中〜大ゴマ左", "P2-C1 中〜大ゴマ", "P2-C2 中ゴマ", "P2-C3 大ゴマ 締め", "ラベルカード"]),
+    panels: makePanels(["P1-C1 大ゴマ", "P1-C2 中ゴマ右", "P1-C3 中〜大ゴマ左", "P2-C1 中〜大ゴマ", "P2-C2 中ゴマ", "P2-C3 大ゴマ 締め"]),
     done: {}, seconds: {}, allDone: false,
   },
   {
@@ -111,12 +117,12 @@ const DEFAULT_EPS = [
   },
   {
     id: "ep4", title: "さよならと、はじまり",
-    panels: makePanels(["P1-C1 大ゴマ", "P1-C2 中ゴマ右", "P1-C3 大ゴマ 見せ場", "P2-C1 中ゴマ右", "P2-C2 中〜大ゴマ 翻訳", "P2-C3 大ゴマ 余韻", "ラベルカード"]),
+    panels: makePanels(["P1-C1 大ゴマ", "P1-C2 中ゴマ右", "P1-C3 大ゴマ 見せ場", "P2-C1 中ゴマ右", "P2-C2 中〜大ゴマ 翻訳", "P2-C3 大ゴマ 余韻"]),
     done: {}, seconds: {}, allDone: false,
   },
   {
     id: "ep5", title: "だれにも刺さらなくても",
-    panels: makePanels(["P1-C1 中ゴマ右", "P1-C2 中ゴマ左", "P1-C3 大ゴマ 見せ場", "P1-C4 中ゴマ 着地", "ラベルカード"]),
+    panels: makePanels(["P1-C1 中ゴマ右", "P1-C2 中ゴマ左", "P1-C3 大ゴマ 見せ場", "P1-C4 中ゴマ 着地"]),
     done: {}, seconds: {}, allDone: false,
   },
   {
@@ -126,7 +132,7 @@ const DEFAULT_EPS = [
   },
   {
     id: "ep7", title: "ひといき",
-    panels: makePanels(["P1-C1 中ゴマ 導入", "P1-C2 大ゴマ 至福", "P1-C3 小〜中ゴマ 締め", "ラベルカード"]),
+    panels: makePanels(["P1-C1 中ゴマ 導入", "P1-C2 大ゴマ 至福", "P1-C3 小〜中ゴマ 締め"]),
     done: {}, seconds: {}, allDone: false,
   },
   {
@@ -136,27 +142,27 @@ const DEFAULT_EPS = [
   },
   {
     id: "ep9", title: "こわれもの注意",
-    panels: makePanels(["P1-C1 大ゴマ", "P1-C2 中ゴマ", "P1-C3 中〜大ゴマ", "P2-C1 中〜大ゴマ", "P2-C2 中ゴマ", "P2-C3 大ゴマ 締め", "ラベルカード"]),
+    panels: makePanels(["P1-C1 大ゴマ", "P1-C2 中ゴマ", "P1-C3 中〜大ゴマ", "P2-C1 中〜大ゴマ", "P2-C2 中ゴマ", "P2-C3 大ゴマ 締め"]),
     done: {}, seconds: {}, allDone: false,
   },
   {
     id: "ep10", title: "しーっ",
-    panels: makePanels(["P1-C1 中ゴマ右", "P1-C2 中ゴマ左", "P1-C3 中ゴマ右", "P1-C4 大ゴマ 締め", "ラベルカード"]),
+    panels: makePanels(["P1-C1 中ゴマ右", "P1-C2 中ゴマ左", "P1-C3 中ゴマ右", "P1-C4 大ゴマ 締め"]),
     done: {}, seconds: {}, allDone: false,
   },
 ];
 
-// Pre-fill ep1 as all done
-(() => {
-  const ep1 = DEFAULT_EPS[0];
+// Pre-fill ep0 + ep1 as all done
+[0, 1].forEach(idx => {
+  const ep = DEFAULT_EPS[idx];
   PHASES.forEach(ph => {
     if (ph.unit === "batch") {
-      ep1.done[ph.id] = true;
+      ep.done[ph.id] = true;
     } else {
-      ep1.panels.forEach(p => { ep1.done[ph.id + ":" + p.id] = true; });
+      ep.panels.forEach(p => { ep.done[ph.id + ":" + p.id] = true; });
     }
   });
-})();
+});
 
 // ─── Helpers ───
 function getPhaseProgress(ep, phaseId) {
@@ -389,6 +395,27 @@ function PuwanFactory() {
       }
 
       if (saved && saved.episodes) {
+        // Migration: add prologue if missing
+        if (!saved.episodes.find(e => e.id === "ep0")) {
+          const prologueEp = { ...DEFAULT_EPS[0] };
+          saved.episodes.unshift(prologueEp);
+        }
+        // Migration: remove "ラベルカード" from panels (now a batch phase)
+        let migrated = false;
+        saved.episodes.forEach(ep => {
+          if (ep.panels && ep.panels.some(p => p.label === "ラベルカード")) {
+            const labelPanelIds = ep.panels.filter(p => p.label === "ラベルカード").map(p => p.id);
+            ep.panels = ep.panels.filter(p => p.label !== "ラベルカード");
+            // Move done state: if any label panel task was done, mark label phase done
+            const wasDone = labelPanelIds.some(pid => ["ink","color","finish"].some(ph => ep.done[ph + ":" + pid]));
+            if (wasDone) ep.done.label = true;
+            // Clean up old keys
+            labelPanelIds.forEach(pid => { ["ink","color","finish"].forEach(ph => { delete ep.done[ph + ":" + pid]; delete ep.seconds[ph + ":" + pid]; }); });
+            ep.allDone = isEpAllDone(ep);
+            migrated = true;
+          }
+        });
+        if (migrated) storage.set(SK, saved);
         setData(saved);
         setTodayStats(saved.todayStats?.date === today ? saved.todayStats : { panels: 0, seconds: 0, date: today });
         const lastActive = saved.lastActiveDate;
@@ -613,10 +640,7 @@ function PuwanFactory() {
         panels.push({ id: cId.toLowerCase() + "_" + panels.length, label: label.slice(0, 30) });
         continue;
       }
-      // Omake section
-      if (line.match(/^##\s*おまけ/)) {
-        panels.push({ id: "omake_" + panels.length, label: "ラベルカード" });
-      }
+      // Omake section — now handled as separate "label" phase (batch)
     }
 
     return { title, panels };
@@ -654,7 +678,7 @@ function PuwanFactory() {
   function addEpisode() {
     if (!newTitle.trim()) return;
     const id = "ep" + Date.now();
-    const panels = Array.from({ length: newPanelCount }, (_, i) => ({ id: "c" + (i + 1), label: "C" + (i + 1) }));
+    const panels = newPostType === "manga" ? Array.from({ length: newPanelCount }, (_, i) => ({ id: "c" + (i + 1), label: "C" + (i + 1) })) : [];
     save({ ...data, episodes: [...data.episodes, { id, title: newTitle.trim(), panels, done: {}, seconds: {}, allDone: false, steps: {}, snsState: {}, captions: {}, snsMetrics: {}, postDate: "", postType: newPostType, postUrls: {} }] });
     setNewTitle(""); setNewPanelCount(7); setNewPostType("manga"); setAddingEp(false);
   }
@@ -667,6 +691,16 @@ function PuwanFactory() {
     const newIdx = idx + dir;
     if (newIdx < 0 || newIdx >= eps.length) return;
     [eps[idx], eps[newIdx]] = [eps[newIdx], eps[idx]];
+    save({ ...data, episodes: eps });
+  }
+  function moveEpTo(epId, targetPos) {
+    const eps = [...data.episodes];
+    const idx = eps.findIndex(e => e.id === epId);
+    if (idx < 0) return;
+    const clamped = Math.max(0, Math.min(eps.length - 1, targetPos - 1));
+    if (clamped === idx) return;
+    const [ep] = eps.splice(idx, 1);
+    eps.splice(clamped, 0, ep);
     save({ ...data, episodes: eps });
   }
   function deleteEp(epId) { save({ ...data, episodes: data.episodes.filter(e => e.id !== epId) }); if (activeEp === epId) setActiveEp(null); }
@@ -1062,14 +1096,16 @@ function PuwanFactory() {
                     })}
                   </div>
                 </label>
-                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "#7E7E96", fontWeight: 600 }}>
-                  コマ数
-                  <select style={S.sel} value={newPanelCount} onChange={e => setNewPanelCount(+e.target.value)}>
-                    {[3, 4, 5, 6, 7, 8, 9, 10, 12].map(n => <option key={n} value={n}>{n}コマ</option>)}
-                  </select>
-                </label>
+                {newPostType === "manga" && (
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "#7E7E96", fontWeight: 600 }}>
+                    コマ数
+                    <select style={S.sel} value={newPanelCount} onChange={e => setNewPanelCount(+e.target.value)}>
+                      {[3, 4, 5, 6, 7, 8, 9, 10, 12].map(n => <option key={n} value={n}>{n}コマ</option>)}
+                    </select>
+                  </label>
+                )}
               </div>
-              <div style={{ fontSize: 10, color: "#4A4A60", marginBottom: 10 }}>※ 工程（下書き〜仕上げ）は自動生成。コマ名は後から編集可</div>
+              <div style={{ fontSize: 10, color: "#4A4A60", marginBottom: 10 }}>{newPostType === "manga" ? "※ 工程（下書き〜ラベルカード）は自動生成。コマ名は後から編集可" : "※ 工程（下書き〜ラベルカード）は自動生成"}</div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button style={S.btnPri} onClick={addEpisode}>追加する</button>
                 <button style={S.ghost} onClick={() => { setAddingEp(false); setShowPaste(false); setPasteText(""); }}>キャンセル</button>
@@ -1101,9 +1137,11 @@ function PuwanFactory() {
               <div key={ep.id} style={{ ...S.epCard, animation: reorderMode ? "none" : `slideIn .25s ease ${ei * .04}s both`, border: reorderMode ? "1px solid #F7C94833" : "none" }}>
                 <div style={S.epHead} onClick={() => { if (!reorderMode) setActiveEp(isOpen ? null : ep.id); }}>
                   {reorderMode && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2, marginRight: 6 }}>
-                      <button onClick={e => { e.stopPropagation(); moveEp(ep.id, -1); }} style={{ width: 24, height: 20, borderRadius: 4, border: "1px solid #2A2A38", background: "#18181F", color: "#7E7E96", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>▲</button>
-                      <button onClick={e => { e.stopPropagation(); moveEp(ep.id, 1); }} style={{ width: 24, height: 20, borderRadius: 4, border: "1px solid #2A2A38", background: "#18181F", color: "#7E7E96", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>▼</button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginRight: 6 }}>
+                      <input type="number" min={1} max={episodes.length} value={ep._origIndex + 1}
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => { const v = parseInt(e.target.value); if (v >= 1 && v <= episodes.length) moveEpTo(ep.id, v); }}
+                        style={{ width: 38, height: 30, borderRadius: 6, border: "1.5px solid #F7C94844", background: "#18181F", color: "#F7C948", fontSize: 13, fontWeight: 700, textAlign: "center", fontFamily: "'Share Tech Mono',monospace", padding: 0, outline: "none" }} />
                     </div>
                   )}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
