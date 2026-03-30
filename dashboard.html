@@ -790,6 +790,145 @@ function FilterBar({ statusFilter, setStatusFilter, typeFilter, setTypeFilter, s
   </div>;
 }
 
+// --- SKIP DAY CALENDAR ---
+function SkipDayCal({ startDate, skipDates, toggleSkip }) {
+  const base = new Date(startDate);
+  const [calMonth, setCalMonth] = useState(base.getMonth());
+  const [calYear, setCalYear] = useState(base.getFullYear());
+  const fd = new Date(calYear, calMonth, 1).getDay();
+  const dim = new Date(calYear, calMonth + 1, 0).getDate();
+  const mN = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+  const wD = ["日","月","火","水","木","金","土"];
+  const days = []; for (let i = 0; i < fd; i++) days.push(null); for (let i = 1; i <= dim; i++) days.push(i);
+  return (
+    <div style={{ marginBottom: 12, padding: 12, background: C.surface, borderRadius: 10, border: "1px solid " + C.border }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <button onClick={() => { if (calMonth === 0) { setCalYear(calYear - 1); setCalMonth(11); } else setCalMonth(calMonth - 1); }} style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>◀</button>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>{calYear}年 {mN[calMonth]}</span>
+        <button onClick={() => { if (calMonth === 11) { setCalYear(calYear + 1); setCalMonth(0); } else setCalMonth(calMonth + 1); }} style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>▶</button>
+      </div>
+      <div style={{ fontSize: 10, color: C.dim, marginBottom: 6 }}>投稿しない日をタップ</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, textAlign: "center" }}>
+        {wD.map(w => <div key={w} style={{ fontSize: 10, color: C.dim, padding: 2 }}>{w}</div>)}
+        {days.map((d, i) => {
+          if (d === null) return <div key={"e"+i} />;
+          const ds = calYear + "-" + String(calMonth+1).padStart(2,"0") + "-" + String(d).padStart(2,"0");
+          const isSkip = skipDates.includes(ds);
+          return <button key={i} onClick={() => toggleSkip(ds)} style={{ background: isSkip ? C.yellow + "33" : "transparent", color: isSkip ? C.yellow : C.text, border: isSkip ? "1px solid " + C.yellow + "66" : "1px solid transparent", borderRadius: 5, padding: 4, cursor: "pointer", fontSize: 11, fontWeight: isSkip ? 700 : 400, fontFamily: "inherit" }}>{d}</button>;
+        })}
+      </div>
+    </div>
+  );
+}
+
+// --- BULK DATE CALCULATOR ---
+function BulkDateCalc({ eps, save, data }) {
+  const [open, setOpen] = useState(false);
+  const [startDate, setStartDate] = useState(() => {
+    // Find first episode's postDate or today
+    const first = eps.find(e => e.postDate);
+    return first ? first.postDate : toISO(new Date());
+  });
+  const [cadence, setCadence] = useState(data.defaultCadence || "daily");
+  const [skipDates, setSkipDates] = useState(() => data.skipDates || []);
+  const [showSkipCal, setShowSkipCal] = useState(false);
+
+  const cDays = (CADENCES.find(c => c.id === cadence) || CADENCES[0]).days;
+
+  // Preview: calculate dates for all non-posted episodes
+  function calcDates() {
+    const results = [];
+    let cursor = startDate;
+    for (const ep of eps) {
+      // Skip already posted
+      const ss = ep.snsState || {};
+      const isPosted = SNS_LIST.some(s => ss[s.id] === "posted");
+      if (isPosted) {
+        results.push({ ep, date: ep.postDate, locked: true });
+        continue;
+      }
+      // Advance cursor past skip dates
+      while (skipDates.includes(cursor)) { cursor = addDaysTo(cursor, 1); }
+      results.push({ ep, date: cursor, locked: false });
+      // Next slot
+      let next = addDaysTo(cursor, cDays);
+      while (skipDates.includes(next)) { next = addDaysTo(next, 1); }
+      cursor = next;
+    }
+    return results;
+  }
+
+  function applyDates() {
+    const results = calcDates();
+    const newEps = eps.map(ep => {
+      const r = results.find(x => x.ep.id === ep.id);
+      if (!r || r.locked) return ep;
+      return { ...ep, postDate: r.date };
+    });
+    save({ ...data, episodes: newEps, defaultCadence: cadence, skipDates });
+    setOpen(false);
+  }
+
+  function toggleSkip(date) {
+    setSkipDates(prev => prev.includes(date) ? prev.filter(d => d !== date) : [...prev, date].sort());
+  }
+
+  const preview = open ? calcDates() : [];
+
+  if (!open) return (
+    <button onClick={() => setOpen(true)} style={{ ...btnS(C.blue), width: "100%", marginBottom: 12, padding: "10px 16px", fontSize: 13 }}>
+      📅 X配信日を一括算出
+    </button>
+  );
+
+  return (
+    <div style={{ background: C.card, borderRadius: 14, padding: 16, marginBottom: 16, border: "1px solid " + C.blue + "44" }}>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: C.blue }}>📅 X配信日 一括算出</div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12, alignItems: "flex-end" }}>
+        <div>
+          <div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>開始日</div>
+          <CalendarPicker value={startDate} onChange={v => setStartDate(v)} />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>投稿ペース</div>
+          <select value={cadence} onChange={e => setCadence(e.target.value)} style={{ ...inputS, marginBottom: 0 }}>
+            {CADENCES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+        </div>
+        <button onClick={() => setShowSkipCal(!showSkipCal)} style={{ ...btnS(skipDates.length > 0 ? C.yellow : C.sub), padding: "8px 12px", fontSize: 12 }}>
+          🚫 スキップ日{skipDates.length > 0 ? ` (${skipDates.length})` : ""}
+        </button>
+      </div>
+
+      {showSkipCal && <SkipDayCal startDate={startDate} skipDates={skipDates} toggleSkip={toggleSkip} />}
+
+      {/* Preview */}
+      <div style={{ maxHeight: 200, overflowY: "auto", marginBottom: 12, borderRadius: 8, border: "1px solid " + C.border }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead><tr style={{ background: C.surface }}>
+            <th style={{ padding: "6px 8px", textAlign: "left", color: C.sub, fontWeight: 600 }}>#</th>
+            <th style={{ padding: "6px 8px", textAlign: "left", color: C.sub, fontWeight: 600 }}>タイトル</th>
+            <th style={{ padding: "6px 8px", textAlign: "center", color: C.sub, fontWeight: 600 }}>配信日</th>
+          </tr></thead>
+          <tbody>{preview.map((r, i) => (
+            <tr key={r.ep.id} style={{ borderTop: "1px solid " + C.border, opacity: r.locked ? 0.5 : 1 }}>
+              <td style={{ padding: "5px 8px", color: C.dim }}>{i + 1}</td>
+              <td style={{ padding: "5px 8px" }}>{r.ep.title}{r.locked ? " 🔒" : ""}</td>
+              <td style={{ padding: "5px 8px", textAlign: "center", color: r.locked ? C.dim : C.blue, fontWeight: 600 }}>{fmtDate(r.date)}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={applyDates} style={{ ...btnS(C.blue), flex: 1, fontWeight: 700 }}>✓ この日程で確定</button>
+        <button onClick={() => setOpen(false)} style={{ ...ghostBtn }}>キャンセル</button>
+      </div>
+    </div>
+  );
+}
+
 function AddEpisodeBar({ eps, defaultCadence, onAdd, onCancel }) {
   const [title, setTitle] = useState("");
   const [cadence, setCadence] = useState(defaultCadence || "daily");
@@ -865,13 +1004,17 @@ function MangaDashboard() {
       }
     } catch(e) {}
     setLoaded(true);
-    // Auto-fetch from GAS (non-blocking, updates after local load)
+    // Auto-fetch from GAS — only use if local has NO data (first load / reset)
+    // Local is always authoritative because factory saves locally + GAS async (GAS may lag behind)
     if (savedGasUrl) {
       try {
-        const remote = await gasGet(savedGasUrl);
-        if (remote && remote.episodes) {
-          setData({ ...INIT, ...remote });
-          try { await window.storage.set(SK, JSON.stringify({ ...INIT, ...remote })); } catch(e) {}
+        const hasLocal = !!(await window.storage.get(SK))?.value;
+        if (!hasLocal) {
+          const remote = await gasGet(savedGasUrl);
+          if (remote && remote.episodes) {
+            setData({ ...INIT, ...remote });
+            try { await window.storage.set(SK, JSON.stringify({ ...INIT, ...remote })); } catch(e) {}
+          }
         }
       } catch(e) { /* GAS unavailable — local data is fine */ }
     }
@@ -1147,6 +1290,8 @@ function MangaDashboard() {
       </div>}
 
       {tab === "schedule" && <div>
+        {/* Bulk Date Calculator */}
+        <BulkDateCalc eps={eps} save={save} data={data} />
         {/* Today's Tasks */}
         {tasks.length > 0 && <div style={{ marginBottom: 20, padding: 16, background: C.card, borderRadius: 14, border: "1px solid " + C.accent + "33" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 10 }}>📋 今日のタスク（{fmtDate(today)}）</div>
