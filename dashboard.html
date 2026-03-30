@@ -764,7 +764,7 @@ function FilterBar({ statusFilter, setStatusFilter, typeFilter, setTypeFilter, s
   const [showCols, setShowCols] = useState(false);
   const colRef = useRef(null);
   useEffect(() => { function h(e) { if (colRef.current && !colRef.current.contains(e.target)) setShowCols(false); } document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, []);
-  const optionalCols = [{ id: "typeNum", label: "話数（タイプ別）" }, { id: "uniqueId", label: "ID（内部管理用）" }];
+  const optionalCols = [{ id: "numId", label: "ID（固定番号）" }];
   function cycleSort(key) { if (sortKey === key) { if (sortDir === "asc") setSortDir("desc"); else { setSortKey(null); setSortDir("asc"); } } else { setSortKey(key); setSortDir("asc"); } }
   function toggleCol(id) { if (columns.includes(id)) setColumns(columns.filter(x => x !== id)); else setColumns([...columns, id]); }
   return <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12, fontSize: 12 }}>
@@ -1142,8 +1142,9 @@ function MangaDashboard() {
 
   function addEp(title, date, cadence) {
     const id = "ep" + Date.now();
-    const ep = { id, title, postDate: date || "", steps: {}, snsState: {}, captions: {}, story: "", snsMetrics: {}, analyticsNote: "", postType: "manga", postUrls: {}, panels: [], done: {}, seconds: {}, allDone: false };
-    save({ ...data, episodes: [...eps, ep], nextId: (data.nextId || eps.length) + 1, defaultCadence: cadence }); setAdding(false);
+    const numId = data.nextId || eps.length + 1;
+    const ep = { id, numId, title, postDate: date || "", steps: {}, snsState: {}, captions: {}, story: "", snsMetrics: {}, analyticsNote: "", postType: "manga", postUrls: {}, panels: [], done: {}, seconds: {}, allDone: false };
+    save({ ...data, episodes: [...eps, ep], nextId: numId + 1, defaultCadence: cadence }); setAdding(false);
   }
   function upEp(id, u) { save({ ...data, episodes: eps.map(e => e.id === id ? { ...e, ...u } : e) }); }
   function delEp(id) { save({ ...data, episodes: eps.filter(e => e.id !== id) }); if (openId === id) setOpenId(null); }
@@ -1245,12 +1246,10 @@ function MangaDashboard() {
               {deleteMode && <th style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: C.sub, borderBottom: "1px solid " + C.border, width: 36 }}>
                 <input type="checkbox" checked={deleteSelection.length === filtered.length && filtered.length > 0} onChange={e => { if (e.target.checked) setDeleteSelection(filtered.map(x => x.ep.id)); else setDeleteSelection([]); }} style={{ accentColor: C.red }} />
               </th>}
-              {[{ label: "#", key: "number" }, { label: "タイトル", key: "title" }].map((h, i) => {
+              {[{ label: "#", key: "number" }, { label: "タイトル", key: "title" }, ...(columns.includes("numId") ? [{ label: "ID", key: "numId" }] : []), { label: "話数", key: "typeNum" }].map((h) => {
                 const active = sortKey === h.key;
-                return <th key={i} onClick={() => cycleSort(h.key)} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: active ? C.accent : C.sub, borderBottom: "1px solid " + C.border, cursor: "pointer", userSelect: "none" }}>{h.label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>;
+                return <th key={h.key} onClick={() => cycleSort(h.key)} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: active ? C.accent : C.sub, borderBottom: "1px solid " + C.border, cursor: "pointer", userSelect: "none" }}>{h.label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>;
               })}
-              {columns.includes("uniqueId") && (() => { const active = sortKey === "uniqueId"; return <th onClick={() => cycleSort("uniqueId")} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: active ? C.accent : C.dim, borderBottom: "1px solid " + C.border, cursor: "pointer", userSelect: "none" }}>ID{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>; })()}
-              {columns.includes("typeNum") && (() => { const active = sortKey === "typeNum"; return <th onClick={() => cycleSort("typeNum")} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: active ? C.accent : C.sub, borderBottom: "1px solid " + C.border, cursor: "pointer", userSelect: "none" }}>話数{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>; })()}
               {[{ label: "制作", key: "prod" }, { label: "配信", key: "status" }, { label: "X配信日", key: "date" }].map(h => {
                 const active = sortKey === h.key;
                 return <th key={h.label} onClick={() => cycleSort(h.key)} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: active ? C.accent : C.sub, borderBottom: "1px solid " + C.border, cursor: "pointer", userSelect: "none" }}>{h.label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>;
@@ -1269,13 +1268,13 @@ function MangaDashboard() {
                   {deleteMode && <td style={cellS} onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={isSelected} onChange={() => toggleDeleteSelect(ep.id)} style={{ accentColor: C.red }} />
                   </td>}
-                  <td style={cellS}>{dn(ep)}</td>
+                  <td style={{ ...cellS, fontSize: 12, color: C.sub, fontFamily: "'Share Tech Mono',monospace" }}>{dn(ep)}</td>
                   <td style={{ ...cellS, fontWeight: 600 }}>
                     <span style={{ fontSize: 12, marginRight: 4 }}>{(ptMap[ep.postType] || ptMap.manga).icon}</span>
                     {ep.title || "無題"}
                   </td>
-                  {columns.includes("uniqueId") && <td style={{ ...cellS, fontSize: 10, color: C.dim, fontFamily: "monospace" }}>{ep.id}</td>}
-                  {columns.includes("typeNum") && <td style={{ ...cellS, fontSize: 11, color: (ptMap[ep.postType] || ptMap.manga).color }}>{typeNumLabel(ep)}</td>}
+                  {columns.includes("numId") && <td style={{ ...cellS, fontSize: 11, color: C.dim, fontFamily: "'Share Tech Mono',monospace" }}>{ep.numId || "—"}</td>}
+                  <td style={{ ...cellS, fontSize: 11, color: (ptMap[ep.postType] || ptMap.manga).color }}>{typeNumLabel(ep)}</td>
                   <td style={cellS}><ProdStatusPill status={deriveProdStatus(ep)} /></td>
                   <td style={cellS}><StatusPill status={status} /></td>
                   <td style={{ ...cellS, fontSize: 12, color: C.sub }}>{fmtDate(ep.postDate)}</td>

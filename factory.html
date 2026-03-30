@@ -415,6 +415,13 @@ function PuwanFactory() {
             migrated = true;
           }
         });
+        // Migration: assign numId to episodes that don't have one
+        if (saved.episodes.some(ep => !ep.numId)) {
+          let maxId = Math.max(0, ...saved.episodes.map(ep => ep.numId || 0));
+          saved.episodes.forEach(ep => { if (!ep.numId) ep.numId = ++maxId; });
+          saved.nextId = maxId + 1;
+          migrated = true;
+        }
         if (migrated) storage.set(SK, saved);
         setData(saved);
         setTodayStats(saved.todayStats?.date === today ? saved.todayStats : { panels: 0, seconds: 0, date: today });
@@ -678,8 +685,9 @@ function PuwanFactory() {
   function addEpisode() {
     if (!newTitle.trim()) return;
     const id = "ep" + Date.now();
+    const numId = data.nextId || data.episodes.length + 1;
     const panels = newPostType === "manga" ? Array.from({ length: newPanelCount }, (_, i) => ({ id: "c" + (i + 1), label: "C" + (i + 1) })) : [];
-    save({ ...data, episodes: [...data.episodes, { id, title: newTitle.trim(), panels, done: {}, seconds: {}, allDone: false, steps: {}, snsState: {}, captions: {}, snsMetrics: {}, postDate: "", postType: newPostType, postUrls: {} }] });
+    save({ ...data, episodes: [...data.episodes, { id, numId, title: newTitle.trim(), panels, done: {}, seconds: {}, allDone: false, steps: {}, snsState: {}, captions: {}, snsMetrics: {}, postDate: "", postType: newPostType, postUrls: {} }], nextId: numId + 1 });
     setNewTitle(""); setNewPanelCount(7); setNewPostType("manga"); setAddingEp(false);
   }
 
