@@ -464,8 +464,9 @@ function PuwanFactory() {
   // Save
   const save = useCallback(async (d, stats) => {
     const s = stats || todayStats;
+    const payload = { ...d, todayStats: s, lastSavedAt: Date.now() };
     setData(d); if (stats) setTodayStats(stats);
-    try { storage.set(SK, { ...d, todayStats: s }); gasSyncSave({ ...d, todayStats: s }); } catch {}
+    try { storage.set(SK, payload); gasSyncSave(payload); } catch {}
   }, [todayStats]);
 
   function saveGasUrl(url) { setGasUrl(url); storage.set(GAS_URL_KEY, url); }

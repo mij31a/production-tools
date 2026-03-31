@@ -235,13 +235,16 @@ iframe.visible { display: block; }
   function gasPush() {
     var url = getGasUrl();
     if (!url) { setStatus('URLが未設定', false); return; }
-    var data = localStorage.getItem(SK);
-    if (!data) { setStatus('ローカルにデータなし', false); return; }
+    var raw = localStorage.getItem(SK);
+    if (!raw) { setStatus('ローカルにデータなし', false); return; }
+    var data = JSON.parse(raw);
+    data.lastSavedAt = Date.now();
+    localStorage.setItem(SK, JSON.stringify(data));
     setStatus('送信中...', true);
     fetch(url, {
       method: 'POST', redirect: 'follow',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'save', data: JSON.parse(data) })
+      body: JSON.stringify({ action: 'save', data: data })
     })
       .then(function() { setStatus('送信完了！', true); })
       .catch(function() { setStatus('送信失敗', false); });

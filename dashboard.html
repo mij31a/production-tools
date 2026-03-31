@@ -1004,14 +1004,17 @@ function MangaDashboard() {
       }
     } catch(e) {}
     setLoaded(true);
-    // Auto-fetch from GAS — only use if local has NO data (first load / reset)
-    // Local is always authoritative because factory saves locally + GAS async (GAS may lag behind)
+    // Auto-fetch from GAS — compare timestamps, use whichever is newer
+    // Same device reload: local is newer → local wins (no revert)
+    // Different device: GAS has other device's save → GAS wins (cross-device sync)
     if (savedGasUrl) {
       try {
-        const hasLocal = !!(await window.storage.get(SK))?.value;
-        if (!hasLocal) {
-          const remote = await gasGet(savedGasUrl);
-          if (remote && remote.episodes) {
+        const remote = await gasGet(savedGasUrl);
+        if (remote && remote.episodes) {
+          const localRaw = await window.storage.get(SK);
+          const localTs = localRaw?.value ? (JSON.parse(localRaw.value).lastSavedAt || 0) : 0;
+          const remoteTs = remote.lastSavedAt || 0;
+          if (remoteTs > localTs) {
             setData({ ...INIT, ...remote });
             try { await window.storage.set(SK, JSON.stringify({ ...INIT, ...remote })); } catch(e) {}
           }
@@ -1036,12 +1039,13 @@ function MangaDashboard() {
 
   // Save: local + GAS (non-blocking)
   const save = useCallback(async d => {
-    setData(d);
-    try { await window.storage.set(SK, JSON.stringify(d)); } catch(e) {}
+    const payload = { ...d, lastSavedAt: Date.now() };
+    setData(payload);
+    try { await window.storage.set(SK, JSON.stringify(payload)); } catch(e) {}
     // GAS sync (fire-and-forget)
     try {
       const u = await window.storage.get(GAS_URL_KEY);
-      if (u && u.value) gasPost(u.value, d).catch(() => {});
+      if (u && u.value) gasPost(u.value, payload).catch(() => {});
     } catch(e) {}
   }, []);
 
