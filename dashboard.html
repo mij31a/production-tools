@@ -585,6 +585,17 @@ function DetailPanel({ ep, update, onClose, onDelete, allEps, displayNum }) {
             </div>; })}
         </div>
       </div>
+      {/* Reply text (for label image post) */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 11, color: C.sub }}>💬 リプ用テキスト</span>
+            <span style={{ fontSize: 9, color: C.dim }}>X・Threads共通</span>
+          </div>
+          {(ep.captions?.replyText || "").trim() && <CopyBtn text={ep.captions.replyText} />}
+        </div>
+        <textarea value={(ep.captions?.replyText) || ""} rows={2} onChange={e => update({ captions: { ...(ep.captions || {}), replyText: e.target.value } })} placeholder="ラベル画像に添える一言…" style={{ ...inputS, width: "100%", fontSize: 12, resize: "vertical" }} />
+      </div>
       {/* Script Link */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>📄 台本リンク</div>
