@@ -1251,8 +1251,6 @@ function MangaDashboard() {
           <button onClick={() => { setDeleteMode(false); setDeleteSelection([]); }} style={{ ...ghostBtn, fontSize: 12, padding: "8px 14px" }}>キャンセル</button>
         </>}
       </div>
-      {openId && (() => { const ep = eps.find(e => e.id === openId); if (!ep) return null; return <DetailPanel ep={ep} update={u => upEp(openId, u)} onClose={() => setOpenId(null)} onDelete={() => delEp(openId)} allEps={eps} displayNum={dn(ep)} />; })()}
-
       {tab === "table" && <div>
         <FilterBar statusFilter={statusFilter} setStatusFilter={setStatusFilter} typeFilter={typeFilter} setTypeFilter={setTypeFilter} sortKey={sortKey} setSortKey={setSortKey} sortDir={sortDir} setSortDir={setSortDir} columns={columns} setColumns={setColumns} />
         <div style={{ borderRadius: 14, border: "1px solid " + C.border, overflow: "hidden", background: C.surface, overflowX: "auto" }}>
@@ -1276,7 +1274,7 @@ function MangaDashboard() {
               : filtered.map(({ ep, idx, status }) => {
                 const isOpen = openId === ep.id;
                 const isSelected = deleteSelection.includes(ep.id);
-                return <tr key={ep.id} onClick={() => { if (deleteMode) toggleDeleteSelect(ep.id); else setOpenId(isOpen ? null : ep.id); }}
+                return [<tr key={ep.id} onClick={() => { if (deleteMode) toggleDeleteSelect(ep.id); else setOpenId(isOpen ? null : ep.id); }}
                   style={{ cursor: "pointer", background: isSelected ? "#ff444415" : isOpen ? C.accent + "0A" : "transparent", borderBottom: "1px solid " + C.border + "33" }}
                   onMouseEnter={e => { if (!isOpen && !isSelected) e.currentTarget.style.background = C.card; }}
                   onMouseLeave={e => { if (!isOpen && !isSelected) e.currentTarget.style.background = isSelected ? "#ff444415" : "transparent"; }}>
@@ -1292,12 +1290,20 @@ function MangaDashboard() {
                   <td style={{ ...cellS, fontSize: 11, color: (ptMap[ep.postType] || ptMap.manga).color }}>{typeNumLabel(ep)}</td>
                   <td style={cellS}><ProdStatusPill status={deriveProdStatus(ep)} /></td>
                   <td style={cellS}><StatusPill status={status} /></td>
-                  <td style={{ ...cellS, fontSize: 12, color: C.sub }}>{fmtDate(ep.postDate)}</td>
+                  <td style={{ ...cellS, fontSize: 12 }} onClick={e => e.stopPropagation()}>
+                    <CalendarPicker value={ep.postDate || ""} onChange={v => upEp(ep.id, { postDate: v })} label={ep.postDate ? fmtDate(ep.postDate) : "—"} />
+                  </td>
                   {SNS_LIST.map(sns => <td key={sns.id} style={cellS} onClick={e => e.stopPropagation()}>
                     <SnsStateBtn value={(ep.snsState || {})[sns.id] || "none"} onChange={v => upEp(ep.id, { snsState: { ...(ep.snsState || {}), [sns.id]: v } })} />
                   </td>)}
-                </tr>;
-              })}
+                </tr>,
+                isOpen && <tr key={ep.id + "_detail"}>
+                  <td colSpan={99} style={{ padding: 0, background: C.card, borderBottom: "2px solid " + C.accent + "44" }}>
+                    <DetailPanel ep={ep} update={u => upEp(ep.id, u)} onClose={() => setOpenId(null)} onDelete={() => delEp(ep.id)} allEps={eps} displayNum={dn(ep)} />
+                  </td>
+                </tr>
+              ].filter(Boolean);
+              }).flat()}
             </tbody>
           </table>
         </div>
