@@ -112,8 +112,9 @@ const CADENCES = [
 
 const POST_TYPES = [
   { id: "manga", label: "漫画", icon: "📖", color: C.accent },
-  { id: "video", label: "動画", icon: "🎬", color: C.blue },
+  { id: "tweet", label: "つぶやき", icon: "💭", color: C.yellow },
   { id: "illust", label: "イラスト", icon: "🎨", color: C.purple },
+  { id: "video", label: "動画", icon: "🎬", color: C.blue },
 ];
 const ptMap = {}; POST_TYPES.forEach(p => { ptMap[p.id] = p; });
 
@@ -1152,6 +1153,7 @@ function MangaDashboard() {
     if (t === "manga") return "第" + n + "話";
     if (t === "video") return "動画" + n;
     if (t === "illust") return "イラスト" + n;
+    if (t === "tweet") return "つぶやき" + n;
     return n;
   }
 
