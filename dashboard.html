@@ -208,7 +208,8 @@ function autoUpdateSnsState(ep, sortedEps) {
 function getDeliverySchedule(ep, sortedEps) {
   if (!ep.postDate) return [];
   const delay = getSnsDelay();
-  let groupBDate = addDaysTo(ep.postDate, 1); // default: next day
+  // Default: all SNS same day as X post date
+  let groupBDate = ep.postDate;
   if (delay.mode === "lag5" && sortedEps) {
     const idx = sortedEps.findIndex(e => e.id === ep.id);
     if (idx >= 0 && idx + 5 < sortedEps.length && sortedEps[idx + 5].postDate) {
@@ -222,8 +223,8 @@ function getDeliverySchedule(ep, sortedEps) {
     { sns: "threads", date: ep.postDate, time: "19:50", label: "Threads", group: "a" },
   ];
   if (groupBDate) {
-    schedule.push({ sns: "ig", date: groupBDate, time: "12:00", label: "IG", group: "b" });
-    schedule.push({ sns: "tiktok", date: groupBDate, time: "18:00", label: "TikTok", group: "b" });
+    schedule.push({ sns: "ig", date: groupBDate, time: "19:50", label: "IG", group: "b" });
+    schedule.push({ sns: "tiktok", date: groupBDate, time: "19:50", label: "TikTok", group: "b" });
   }
   return schedule;
 }
